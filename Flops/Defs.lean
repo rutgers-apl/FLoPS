@@ -1,15 +1,20 @@
+
+-- This module defines the basic types and operations for the abstract floating point model
+
 import Mathlib.Data.Real.Basic
 import Mathlib.Algebra.Order.GroupWithZero.Unbundled.Basic
 import Mathlib.Tactic.Rify
 import Mathlib.Tactic.Linarith
 
 -- parameterized by β, but in P3109 it's always float 2
+-- the abstract model uses (fnum: ℤ, exp: ℤ)  to represent a floating point number.
 structure float (β : ℕ) where
   fnum : Int
   exp : Int
 
 -- dexp (in the PVS formalization by Sylvie Boldo), is negative emin
 -- I don't know why they chose that, I'm planning to change it to emin
+-- the format is an unbounded float with no bound on the exponent. We just maintain the smallest exponent emin.
 structure Format where
   precision : ℕ
   dexp : ℤ
@@ -32,6 +37,7 @@ noncomputable def to_real (f : float β) : ℝ := f.fnum * (β ^ f.exp)
 noncomputable instance : CoeOut (float β) ℝ where
   coe := to_real
 
+-- falign aligns the significands of two floats by adjusting exponents.
 -- legacy code... better use the next one
 def falign (f g : float β) : Int × Int × Int :=
   if f.exp ≤ g.exp
@@ -51,6 +57,7 @@ lemma falign_eq (a b : float β) :
   rw [min_eq_left (by omega)]; simp
   rw [min_eq_right (by omega)]; simp
 
+-- fopp is the floating point negation operation, it negates the significand and keeps the exponent unchanged.
 def fopp (f : float β) : float β :=
   ⟨-f.fnum, f.exp⟩
 
