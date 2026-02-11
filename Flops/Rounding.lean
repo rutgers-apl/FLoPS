@@ -31,6 +31,8 @@ def rounddown (r : ℝ) (f : float β) :=
   ∀ (g : float β), @bounded_float _ format g →
     g ≤ r → (g : ℝ) ≤ f
 
+
+-- rounded_proj: from a bounded float to the nearest float [helper]
 def rounded_proj (f : float β) :
   @bounded_float β format f →
   @nearest β format (to_real f) f := by
@@ -38,6 +40,7 @@ def rounded_proj (f : float β) :
   apply And.intro Hf
   simp
 
+-- proj1: from a bounded float to a roundup float [helper]
 def proj1 (f : float β) :
   @bounded_float β format f →
   @roundup β format f f := by
@@ -45,6 +48,7 @@ def proj1 (f : float β) :
   apply And.intro Hf
   simp
 
+-- proj2: from a bounded float to a rounddown float [helper]
 def proj2 (f : float β) :
   @bounded_float β format f →
   @rounddown β format f f := by
@@ -52,6 +56,7 @@ def proj2 (f : float β) :
   apply And.intro Hf
   simp
 
+-- the following lemmas show that 0 is rounded to 0 with exponent equal to emin (which is -dexp)
 lemma nearest_0 : @nearest β format 0 ⟨0, -format.dexp⟩ := by
   simp [nearest, to_real]
   apply bounded_0
@@ -63,6 +68,7 @@ lemma roundup_0 : @roundup β format 0 ⟨0, -format.dexp⟩ := by
 lemma rounddown_0 : @rounddown β format 0 ⟨0, -format.dexp⟩ := by
   simp [rounddown, to_real]
   apply bounded_0
+
 
 def digits (m : ℤ) : ℤ :=
   match m with

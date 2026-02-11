@@ -116,6 +116,7 @@ def normal (f : float β) :=
   @bounded_float β format f
   ∧ @vnum β format <= |β * f.fnum|
   -- β^(p-1) ≤ |f.fnum| < β^p
+  -- 2^p <= 2 * |f.fnum|
 
 lemma normal_bound (x : float β) :
   @normal β format x →
