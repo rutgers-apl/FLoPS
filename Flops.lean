@@ -2,7 +2,6 @@
 -- Import modules here that should be built as part of the library.
 -- correctness guarantee
 import Flops.P3109.Bijection
-import Flops.P3109.Decode
 import Flops.P3109.RoundTrip
 -- arithmetic properties
 import Flops.P3109.Sterbenz

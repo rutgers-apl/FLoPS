@@ -1,6 +1,5 @@
 import Flops.P3109.Defs
 import Flops.P3109.Emax
-import Flops.P3109.Encode
 import Mathlib.Tactic.Contrapose
 
 set_option maxHeartbeats 500000
