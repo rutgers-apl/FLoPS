@@ -147,7 +147,7 @@ end p3109_format
 variable {f : p3109_format} {format : Format}
 namespace p3109_format
 
-def normal_p3109 (x : float 2): Prop :=
+def normal_p3109 (x : float 2) : Prop :=
   @bounded_float 2 f.to_format x
   ∧ @vnum 2 f.to_format <= |2 * x.fnum|
   ∧ x.exp ≤ f.emax_lsb
@@ -405,20 +405,15 @@ noncomputable def to_ereal (x : p3109 f) : EReal := match x with
   | .p3109_nan => 0
   | .p3109_finite (m : ℤ) (e : ℤ) _ _ => (m : ℝ) * (2^e : ℝ)
 
-noncomputable def to_value_set (x : p3109 f) : EReal ⊕ Unit :=
+-- to closed extended reals, unit is for NaN
+noncomputable def to_cereal (x : p3109 f) : EReal ⊕ Unit :=
   match x with
   | .p3109_infinity _ true _ => Sum.inl ⊥
   | .p3109_infinity _ false _ => Sum.inl ⊤
   | .p3109_nan => Sum.inr ()
   | .p3109_finite (m : ℤ) (e : ℤ) _ _ => Sum.inl ((m : ℝ) * (2^e : ℝ))
 
--- unit is for nan
-noncomputable def value_set (x : p3109 f) : EReal ⊕ Unit :=
-  match x with
-  | .p3109_infinity _ true _ => Sum.inl ⊥
-  | .p3109_infinity _ false _ => Sum.inl ⊤
-  | .p3109_nan => Sum.inr ()
-  | .p3109_finite (m : ℤ) (e : ℤ) _ _ => Sum.inl ((m : ℝ) * (2^e : ℝ))
+def value_set (f : p3109_format) := Set.range (@to_cereal f)
 
 noncomputable def to_real (x : p3109 f) : ℝ := match x with
   | .p3109_finite (m : ℤ) (e : ℤ) _ _ => (m : ℝ) * (2^e : ℝ)

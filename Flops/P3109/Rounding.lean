@@ -588,12 +588,13 @@ structure encode_ret (x : EReal ⊕ Unit) where
     |_ => True
 
 noncomputable def encode_aux (x : EReal ⊕ Unit)
-  (h : x ∈ Set.range (@value_set f)) : @encode_ret f x :=
+  (h : x ∈ value_set f) : @encode_ret f x :=
   match x with
   |Sum.inl ⊥ =>
     have : f.d = .extended ∧ f.s=.signed := by
       simp [value_set] at h
       let ⟨y, heq⟩ := h
+      simp [to_cereal] at heq
       split at heq <;> simp at heq
       constructor
       assumption
@@ -614,6 +615,7 @@ noncomputable def encode_aux (x : EReal ⊕ Unit)
     have : f.d = .extended := by
       simp [value_set] at h
       let ⟨y, heq⟩ := h
+      simp [to_cereal] at heq
       split at heq <;> simp at heq
       assumption
       expose_names
@@ -632,6 +634,7 @@ noncomputable def encode_aux (x : EReal ⊕ Unit)
       simp [value_set] at h
       let ⟨y, heq⟩ := h
       clear h
+      simp [to_cereal] at heq
       split at heq <;> simp at heq
       expose_names
       exists m, e
@@ -679,10 +682,10 @@ noncomputable def encode_aux (x : EReal ⊕ Unit)
         simp ⟩
 
 noncomputable def encode (x : EReal ⊕ Unit)
-  (h : x ∈ Set.range (@value_set f)) :  p3109 f  :=
+  (h : x ∈ value_set f) :  p3109 f  :=
   (@encode_aux f x h).a
 
-def encode_m (x : EReal ⊕ Unit) (h : x ∈ Set.range (@value_set f)) :=
+def encode_m (x : EReal ⊕ Unit) (h : x ∈ value_set f) :=
   (@encode_aux f x h).h
 
 lemma canonical_in_range_after_round_sat (x : EReal) (sat : SaturationMode) (rnd : RoundingMode) (r : ℝ) :
@@ -813,7 +816,7 @@ lemma saturate_bot_signed (x : EReal) (rnd : RoundingMode) (sat : SaturationMode
 noncomputable def in_value_set (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
   let R := @round_to_precision f x rnd;
   let S := @saturate f R sat rnd;
-  Sum.inl S ∈ Set.range (@value_set f) := by
+  Sum.inl S ∈ value_set f := by
     simp [value_set]
     set R := @round_to_precision f x rnd with hr
     set S := @saturate f R sat rnd with hs
@@ -842,7 +845,7 @@ noncomputable def in_value_set (x : EReal) (rnd : RoundingMode) (sat : Saturatio
     rcases y
     expose_names
     cases sign
-    simp
+    simp [to_cereal]
     simp [to_p3109] at hy
     simp [to_p3109] at hy
     simp [to_p3109] at hy
@@ -852,5 +855,5 @@ noncomputable def in_value_set (x : EReal) (rnd : RoundingMode) (sat : Saturatio
       simp [hy]
       simp [to_real]
       simp [_root_.to_real]
-    simp [heq, <-this, hy, to_real]
+    simp [heq, <-this, hy, to_real, to_cereal]
     simp [hs, hr]

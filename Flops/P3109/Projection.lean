@@ -767,7 +767,7 @@ lemma project_faithful (x : ℝ) (rnd : RoundingMode) (sat : SaturationMode) :
   assumption
 
 lemma encode_aux_is_finite {x : ℝ} :
-  (h : Sum.inl (x:EReal) ∈ Set.range (@value_set f)) →
+  (h : Sum.inl (x:EReal) ∈ value_set f) →
   (@encode_aux f (Sum.inl x) h).a.is_finite := by
   intro h
   simp [encode_aux]; unfold encode_ret.a
@@ -779,9 +779,10 @@ lemma encode_aux_is_finite {x : ℝ} :
 
 lemma finite_encode_self {x : p3109 f} :
   x.is_finite →
-  (h : Sum.inl (x:EReal) ∈ Set.range (@value_set f)) →
+  (h : Sum.inl (x:EReal) ∈ value_set f) →
   @encode f (Sum.inl x) h = x := by
   rcases heq:x <;> simp [is_finite]
+  simp [value_set]
   intro x h
   expose_names
   simp [to_ereal]
@@ -805,7 +806,7 @@ lemma finite_encode_self {x : p3109 f} :
   simp
   have := @encode_m f (Sum.inl (some (some (m*2^e))))
     (by
-      simp
+      simp [value_set]
       exists .p3109_finite m e hm h_1)
     (by
       simp [encode_aux]
@@ -926,7 +927,7 @@ lemma finite_project_self {x : p3109 f} :
   simp
   have := @encode_m f (Sum.inl (some (some round)))
     (by
-      simp
+      simp [value_set]
       exists .p3109_finite m e hm h; simp [value_set, hround]; rw [lift_some_some_ereal]; norm_cast)
     (by
       simp [encode_aux]

@@ -5,8 +5,8 @@ namespace p3109_format
 namespace p3109
 
 lemma rt {f : p3109_format} {x : p3109 f} :
-  @encode f (@to_value_set f x) (by simp [to_value_set, value_set]) = x := by
-  simp [to_value_set]
+  @encode f (@to_cereal f x) (by simp [to_cereal, value_set]) = x := by
+  simp [to_cereal]
   split
   simp [encode, encode_aux]
   simp [encode, encode_aux]
