@@ -23,9 +23,14 @@ structure p3109_format where
 
 namespace p3109_format
 
+-- compute the exponent width
 def W (f : p3109_format) : ℕ := match f.s with
   |.signed => f.K - f.P
   |.unsigned => f.K - f.P + 1
+
+-- from the P3109 standard, for signed formats, P < K the exponent bias is 2^{K-P-1}.
+-- for unsigned formats, P ≤ K the exponent bias is 2^{K-P}.
+-- The below definition is consistent with the P3109 standard.
 def bias (f : p3109_format) : ℤ := 2^(f.W-1)
 
 -- very error prone, see emax_lsb.lean for some correctness guarantee
@@ -46,7 +51,7 @@ def emax (f : p3109_format) : ℤ := match f.K, f.P, f.s, f.d with
   -- p=1, signed finite belongs to the last case
   |_, _, _, _ => 2^f.W-1-f.bias
 
--- emax_lsb wrt. LSB
+-- emax_lsb wrt. LSB ( we want to maintain (m,e) for a abstract algebraic value)
 -- e.g. 1111 * 2^e or 1 * 2^emin_lsb
 def emax_lsb (f : p3109_format) : ℤ := f.emax - f.P + 1
 -- e.g. 0.0001 * 2^emin
@@ -56,6 +61,7 @@ def emin_lsb (f : p3109_format) : ℤ := f.emin - f.P + 1
 def to_format (f : p3109_format) : Format := ⟨f.P, -f.emin_lsb, f.bias⟩
 
 -- for the overflow immunity proof
+-- maintaining the condition that P >=3 similar to Sylvie Boldo's overflow immunity proof for Fast2Sum.
 lemma emin_emax_eq (f : p3109_format) (hp : 3 ≤ f.P) :
   (f.emin_lsb = f.emax_lsb ↔ f.W = 1) := by
   constructor
@@ -141,7 +147,7 @@ end p3109_format
 variable {f : p3109_format} {format : Format}
 namespace p3109_format
 
-def normal_p3109 (x : float 2) :=
+def normal_p3109 (x : float 2): Prop :=
   @bounded_float 2 f.to_format x
   ∧ @vnum 2 f.to_format <= |2 * x.fnum|
   ∧ x.exp ≤ f.emax_lsb
@@ -370,14 +376,19 @@ def p3109_0 : p3109 f :=
 
 namespace p3109
 
+-- exponent of the P3109 finite value.
+-- We don't call this function on non-finite values.
 def exp (x : p3109 f) := match x with
+-- this is a bit weird but never used.
   | .p3109_nan
   | .p3109_infinity _ _ _ => f.emin_lsb
   | .p3109_finite _ e _ _ => e
 
+-- integer significant of the finite value
 def fnum (x : p3109 f) := match x with
   | .p3109_finite m _ _ _ => m
   |_ => 0
+
 
 def is_finite (x : p3109 f) := match x with
   | .p3109_finite _ _ _ _ => True
