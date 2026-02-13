@@ -70,6 +70,8 @@ lemma rounddown_0 : @rounddown β format 0 ⟨0, -format.dexp⟩ := by
   apply bounded_0
 
 
+-- computing the number of bits in the input m.
+-- use of constructors is weird, need to rewrite it.
 def digits (m : ℤ) : ℤ :=
   match m with
   |Int.ofNat n => Nat.log 2 n + 1

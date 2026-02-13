@@ -7,6 +7,7 @@ namespace p3109_format
 namespace p3109
 
 -- any rounding mode, any saturation mode
+-- specifically for signed p3109 representations.
 theorem sterbenz {f : p3109_format} {a b : p3109 f} {rnd : RoundingMode} {sat : SaturationMode} :
   f.s = .signed →
   a.is_finite →

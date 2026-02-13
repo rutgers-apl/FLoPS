@@ -423,6 +423,7 @@ lemma n_to_p_negate {f : p3109_format} (n : ℕ) (hs : f.s = .signed) (hn : n �
   simp [pow_add, mul_two]
   exact hlt
 
+-- Given a natural number n, extract them into m and e.
 lemma extract_m_e {f : p3109_format} (n m e: ℕ) :
   m < 2^(f.P-1) →
   m + e * 2^(f.P-1) = n →
