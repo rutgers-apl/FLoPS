@@ -198,7 +198,7 @@ theorem ExtractScalar_properties {f : p3109_format} (σ p : p3109 f) (M : ℤ) :
   simp [round_to_fp] at hp'r
 
   have := @fast2sum_rne_t_exact f
-    σ.to_float p.to_float
+    σ.to_float p.to_float (round_choice_abs (@to_even' f)) (round_choice_abs (@to_even' f)) _ _
     (by
       revert hsigma_fin; rcases σ <;> simp [is_finite]
       simp [to_float]
@@ -218,7 +218,7 @@ theorem ExtractScalar_properties {f : p3109_format} (σ p : p3109 f) (M : ℤ) :
       simp [to_float_eq] at hp_le_sigma
       simp [hp_le_sigma]
       simp [to_float_eq, hsigmaeq]; apply zpow_pos; simp)
-  simp [fast2sum_rne] at this
+  simp [fast2sum_op] at this
   simp [to_float_eq] at this
   rw [<-hsum] at this
   simp [rne_abs] at hp'r

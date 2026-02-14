@@ -78,6 +78,32 @@ noncomputable def round_to_precision_generic (x : ℝ) (rnd : RoundingMode) : �
   |.StochasticB R N h => @round_fp format (stochastic (.B R N h)) x
   |.StochasticC R N h => @round_fp format (stochastic (.C R N h)) x
 
+noncomputable def to_rnd (m : RoundingMode) : ℤ → ℝ → ℤ :=
+  let format := f.to_format;
+  match m with
+  |.RD => Function.const ℤ (⌊.⌋)
+  |.RU => Function.const ℤ (⌈.⌉)
+  |.RZ => λ_ r => if 0 ≤ r then ⌊r⌋ else ⌈r⌉
+  |.RNE => round_choice_abs (@to_even' format)
+  |.RNA => round_choice (Function.const ℤ to_away)
+  |.RTO => @to_odd format
+  |.StochasticA R N h => stochastic (.A R N h)
+  |.StochasticB R N h => stochastic (.B R N h)
+  |.StochasticC R N h => stochastic (.C R N h)
+
+lemma to_rnd_faithful {f : p3109_format} (m : RoundingMode) :
+  Faithful (@to_rnd f m) := by
+  simp [to_rnd]; split
+  exact instValidRoundConstForallRealIntFloor.toFaithful
+  exact instValidRoundConstForallRealIntCeil.toFaithful
+  exact instValidRoundIteIntLeRealOfNatFloorCeil.toFaithful
+  exact instValidRoundRound_choice_abs.toFaithful
+  exact instValidRoundRound_choice.toFaithful
+  exact instValidRoundTo_odd.toFaithful
+  exact instFaithfulStochastic
+  exact instFaithfulStochastic
+  exact instFaithfulStochastic
+
 -- mainly we'll be using this function, which produces a float, then show equivalence between it and the p3109 impl
 noncomputable def round_to_fp (rnd : RoundingMode) (x : ℝ) : float 2 :=
   let format := f.to_format;
@@ -91,6 +117,14 @@ noncomputable def round_to_fp (rnd : RoundingMode) (x : ℝ) : float 2 :=
   |.StochasticA N R h => @round_fp format (stochastic (.A N R h)) x
   |.StochasticB N R h => @round_fp format (stochastic (.B N R h)) x
   |.StochasticC N R h => @round_fp format (stochastic (.C N R h)) x
+
+-- commuting between round_fp and round_to_fp
+lemma round_to_fp_eq_round_fp_to_rnd {f : p3109_format} {m : RoundingMode} :
+  @round_to_fp f m x = @round_fp f.to_format (@to_rnd f m) x := by
+  simp [round_to_fp, to_rnd]
+  simp [round_to_zero_all]
+  simp [rne_abs, rna_float, round_nearest_all]
+  split <;> simp
 
 lemma round_to_fp_eq (x : ℝ) (rnd : RoundingMode) :
   @round_to_precision_generic f x rnd = @round_to_fp f rnd x := by
