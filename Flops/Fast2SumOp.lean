@@ -6,22 +6,16 @@ import Flops.Sterbenz
 variable {format : Format}
 
 noncomputable def fast2sum_op (a b : float 2)
-  (rnd1 rnd2 rnd3 : ℤ → ℝ → ℤ) [ValidRound rnd1] [ValidRound rnd2] [ValidRound rnd3] :=
+  (rnd1 rnd2 rnd3 : ℤ → ℝ → ℤ) :=
   let s := @round_fp format rnd1 (a + b);
   let z := @round_fp format rnd2 (s - a : ℝ);
   let t := @round_fp format rnd3 (b - z : ℝ);
   (s, t)
 
-noncomputable def fast2sum_rne (a b : float 2) :=
-  let s := @round_fp format (round_choice_abs (@to_even' format)) (a + b);
-  let z := @round_fp format (round_choice_abs (@to_even' format)) (s - a : ℝ);
-  let t := @round_fp format (round_choice_abs (@to_even' format)) (b - z : ℝ);
-  (s, t)
-
 lemma fast2sum_axiom_op_equiv
   (rnd1 rnd2 rnd3 : ℤ → ℝ → ℤ) [ValidRound rnd1] [ValidRound rnd2] [ValidRound rnd3] :
   ∀(a b : float 2),
-  @fast2sum_op format a b rnd1 rnd2 rnd3 _ _ _ =
+  @fast2sum_op format a b rnd1 rnd2 rnd3 =
   @fast2sum
     (rndup := @round_fp format (Function.const ℤ (⌈.⌉)))
     (rnddown := @round_fp format (Function.const ℤ (⌊.⌋)))
@@ -38,7 +32,7 @@ lemma f2sop_faithful (a b : float 2)
   (rnd1 rnd2 rnd3 : ℤ → ℝ → ℤ) [ValidRound rnd1] [ValidRound rnd2] [ValidRound rnd3] :
     a.exp ≥ b.exp →
     @bounded_float _ format a → @bounded_float _ format b →
-    match @fast2sum_op format a b rnd1 rnd2 rnd3 _ _ _ with
+    match @fast2sum_op format a b rnd1 rnd2 rnd3 with
      | (s, t) =>
       t ∈ ({@round_fp format (Function.const ℤ (⌊.⌋)) (a + b - s : ℝ) , @round_fp format (Function.const ℤ (⌈.⌉)) (a + b - s : ℝ)} : Multiset (float 2)) := by
   intros
@@ -520,20 +514,20 @@ lemma rnd_multiple [ValidRound rnd] (f : float 2) :
   simp [to_real]
 
 -- the same proof as in the handbook
-lemma fast2sum_rne_t_exact (a b : float 2) :
+lemma fast2sum_rne_t_exact (a b : float 2) (rnd2 rnd3 : ℤ → ℝ → ℤ) [Faithful rnd2] [Faithful rnd3] :
   @canonical 2 format a →
   @canonical 2 format b →
   b.exp ≤ a.exp →
-  match @fast2sum_rne format a b with
+  match @fast2sum_op format a b (round_choice_abs (@to_even' format)) rnd2 rnd3 with
   |(s, t) => (t:ℝ) = a+b-s := by
   intro ha hb hle
-  simp [fast2sum_rne]
+  simp [fast2sum_op]
   set s := @round_fp format (round_choice_abs (@to_even' format)) (a + b) with hs
-  set z := @round_fp format (round_choice_abs (@to_even' format)) (s - a : ℝ) with hz
-  set t := @round_fp format (round_choice_abs (@to_even' format)) (b - z : ℝ) with ht
+  set z := @round_fp format rnd2 (s - a : ℝ) with hz
+  set t := @round_fp format rnd3 (b - z : ℝ) with ht
   have := @fast2sum_z_exact format
     (round_choice_abs (@to_even' format))
-    (round_choice_abs (@to_even' format))
+    rnd2
     _ _ a b (canonical_bounded ha) (canonical_bounded hb) hle
   simp at this
   rw [<-hs, <-hz] at this
@@ -569,7 +563,7 @@ lemma fast2sum_rne_t_exact (a b : float 2) :
   set mt := (a.fnum * ↑(2 ^ (a.exp - b.exp).toNat) + b.fnum - m) with hmt
   norm_cast at hmt
   rw [<-hmt] at ht this ⊢
-  have self := @round_fp_bounded_self format (round_choice_abs (@to_even' format)) _ ⟨mt, b.exp⟩ (by
+  have self := @round_fp_bounded_self format rnd3 _ ⟨mt, b.exp⟩ (by
     have ⟨_, _⟩ := canonical_bounded hb
     constructor; simp
     simp [to_real, abs_mul] at this

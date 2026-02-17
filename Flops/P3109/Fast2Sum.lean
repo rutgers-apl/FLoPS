@@ -18,10 +18,10 @@ noncomputable def minus (a b : p3109 f) (rnd : RoundingMode) (sat : SaturationMo
 
 noncomputable def fast2sum (a b : p3109 f)
   (rnd1 rnd2 rnd3 : RoundingMode)
-  (sat : SaturationMode) :=
-  let s := @plus f a b rnd1 sat;
-  let z := @minus f s a rnd2 sat;
-  let t := @minus f b z rnd3 sat;
+  (sat1 sat2 sat3 : SaturationMode) :=
+  let s := @plus f a b rnd1 sat1;
+  let z := @minus f s a rnd2 sat2;
+  let t := @minus f b z rnd3 sat3;
   (s, t)
 
 lemma project_real_neg_inf_signed (x : ℝ) {rnd : RoundingMode} {sat : SaturationMode} :
@@ -122,7 +122,7 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   b.exp ≤ a.exp →
   a.is_finite →
   b.is_finite →
-  match @fast2sum f a b rnd1 rnd2 rnd3 sat with
+  match @fast2sum f a b rnd1 rnd2 rnd3 sat sat sat with
   |(s, t) =>
     t ∈ ({
       @project f (a + b - s : EReal) .RD sat,
@@ -299,3 +299,101 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   simp [hsat] at ht
   simp [encode, encode_aux] at ht
   simp [ht]
+
+lemma fast2sum_rne_error_exact {f : p3109_format} {a b : p3109 f}
+  (rnd2 rnd3 : RoundingMode) (sat1 sat2 sat3 : SaturationMode) :
+  f.s = .signed →
+  b.exp ≤ a.exp →
+  |(a+b:ℝ)| ≤ @max_finite f →
+  a.is_finite →
+  b.is_finite →
+  match @fast2sum f a b .RNE rnd2 rnd3 sat1 sat2 sat3 with
+  |(s, t) => (t:ℝ)=a+b-s := by
+  rcases heqa:a with _|_|⟨_, _, _, _⟩ <;> rcases heqb:b with _|_|⟨_, _, _, _⟩ <;> simp [is_finite]
+  have hfina : a.is_finite := by simp [heqa, is_finite]
+  have hfinb : b.is_finite := by simp [heqb, is_finite]
+  simp [fast2sum, <-heqa, <-heqb]
+  set s := @plus f a b .RNE sat1 with hs
+  set z := @minus f s a rnd2 sat2 with hz
+  set t := @minus f b z rnd3 sat3 with ht
+  intro hsigned hexple hnoovf
+  simp [exp, heqa, heqb] at hexple
+  simp [plus] at hs
+  simp [minus] at hz ht
+  rw [finite_to_ereal_eq _ hfina, finite_to_ereal_eq _ hfinb] at *
+  norm_cast at hs
+  set Ω := (@max_finite f:ℝ) with hmax
+  have := @fast2sum_rne_t_exact f.to_format a.to_float b.to_float (@to_rnd f rnd2) (@to_rnd f rnd3)
+    (by apply to_rnd_faithful)
+    (by apply to_rnd_faithful)
+    (by simp [to_float, heqa]; apply canonical_fp_of_canonical_p3109; assumption)
+    (by simp [to_float, heqb]; apply canonical_fp_of_canonical_p3109; assumption)
+    (by simp [to_float, heqa, heqb]; assumption)
+  simp [fast2sum_op, to_float_eq] at this
+  rw [hs, project_real_in_bound_eq_round _ _ _ (by
+    rw [min_0_or_neg_max hsigned, <-abs_le]; assumption)]
+  simp [round_to_precision_generic, rne_abs]
+  rw [<-this]
+  simp [ht, hz, hs]
+
+  rw [project_in_bound_eq_round _ .RNE _ (by
+    norm_cast
+    rw [finite_to_ereal_eq _ (by apply min_is_finite)]
+    rw [finite_to_ereal_eq _ (by apply max_is_finite)]
+    norm_cast
+    rw [min_0_or_neg_max hsigned, <-abs_le]; assumption)]
+  norm_cast
+  rw [round_to_precision_eq_simp, round_to_precision_eq]
+  simp [round_to_precision_generic, rne_abs]
+  norm_cast
+  set z' :ℝ := @round_fp f.to_format (round_choice_abs (@to_even' f.to_format)) (a+b) - a with hz'
+  have hz_noovf := @fast2sum_immune_to_overflow f a.to_float b.to_float .RNE hsigned
+    (by simp [heqa, to_float]; assumption)
+    (by simp [heqb, to_float]; assumption)
+    (by simp [heqa, heqb, to_float]; exact hexple)
+    (by simp [to_float_eq]; assumption)
+  simp [round_to_fp, rne_abs, to_float_eq] at hz_noovf
+  rw [<-hz'] at hz_noovf
+  rw [project_in_bound_eq_round _ _ _ (by
+    rw [finite_to_ereal_eq _ (by apply min_is_finite)]
+    rw [finite_to_ereal_eq _ (by apply max_is_finite)]
+    norm_cast
+    rw [min_0_or_neg_max hsigned, <-abs_le]; assumption)]
+  have hz_exact := @round_to_p_fast2sum_z_exact f .RNE rnd2 a.to_float b.to_float
+    (by simp [heqa, to_float]; apply canonical_bounded; apply canonical_fp_of_canonical_p3109; assumption)
+    (by simp [heqb, to_float]; apply canonical_bounded; apply canonical_fp_of_canonical_p3109; assumption)
+    (by simp [heqa, heqb, to_float]; exact hexple)
+  simp [to_float_eq] at hz_exact
+  rewrite (occs := .pos [1]) [round_to_fp] at hz_exact
+  rewrite (occs := .pos [1]) [round_to_fp] at hz_exact
+  simp [rne_abs, <-hz'] at hz_exact
+  rw [round_to_precision_eq_simp, round_to_precision_eq, round_to_fp_eq]
+  rw [<-round_to_fp_eq_round_fp_to_rnd]
+  rw [<-round_to_fp_eq_round_fp_to_rnd]
+  rw [hz_exact]
+  norm_cast
+  rw [project_real_in_bound_eq_round]
+  rw [round_to_fp_eq]
+  rw [min_0_or_neg_max hsigned, <-abs_le]
+  calc |(b-z')|
+    _ = |(@rne_abs f.to_format (a+b)-a-b:ℝ)| := by
+      simp [rne_abs, hz']
+      rw [abs_sub_comm]
+    _ ≤ eps f.to_format * ufp (a+b) := by
+      have := @rne_error f.to_format a.to_float b.to_float
+        (by simp [heqa, to_float]; apply canonical_fp_of_canonical_p3109; assumption)
+        (by simp [heqb, to_float]; apply canonical_fp_of_canonical_p3109; assumption)
+      simp [to_float_eq] at this
+      apply this
+    _ ≤ |(a+b:ℝ)| := by
+      simp [eps, to_format]
+      rw [<-le_div_iff₀' (by simp)]
+      apply le_trans ufp_le
+      rw [le_div_iff₀' (by simp)]
+      clear * -
+      rw [<-one_mul (|(a+b:ℝ)|)]
+      apply mul_le_mul
+      rw [<-zpow_natCast, <-zpow_neg, <-zpow_zero 2]
+      rw [zpow_le_zpow_iff_right₀ (by simp)]; simp
+      simp; simp; simp
+    _ ≤ _ := hnoovf

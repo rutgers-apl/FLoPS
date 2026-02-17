@@ -78,6 +78,32 @@ noncomputable def round_to_precision_generic (x : ℝ) (rnd : RoundingMode) : �
   |.StochasticB R N h => @round_fp format (stochastic (.B R N h)) x
   |.StochasticC R N h => @round_fp format (stochastic (.C R N h)) x
 
+noncomputable def to_rnd (m : RoundingMode) : ℤ → ℝ → ℤ :=
+  let format := f.to_format;
+  match m with
+  |.RD => Function.const ℤ (⌊.⌋)
+  |.RU => Function.const ℤ (⌈.⌉)
+  |.RZ => λ_ r => if 0 ≤ r then ⌊r⌋ else ⌈r⌉
+  |.RNE => round_choice_abs (@to_even' format)
+  |.RNA => round_choice (Function.const ℤ to_away)
+  |.RTO => @to_odd format
+  |.StochasticA R N h => stochastic (.A R N h)
+  |.StochasticB R N h => stochastic (.B R N h)
+  |.StochasticC R N h => stochastic (.C R N h)
+
+lemma to_rnd_faithful {f : p3109_format} (m : RoundingMode) :
+  Faithful (@to_rnd f m) := by
+  simp [to_rnd]; split
+  exact instValidRoundConstForallRealIntFloor.toFaithful
+  exact instValidRoundConstForallRealIntCeil.toFaithful
+  exact instValidRoundIteIntLeRealOfNatFloorCeil.toFaithful
+  exact instValidRoundRound_choice_abs.toFaithful
+  exact instValidRoundRound_choice.toFaithful
+  exact instValidRoundTo_odd.toFaithful
+  exact instFaithfulStochastic
+  exact instFaithfulStochastic
+  exact instFaithfulStochastic
+
 -- mainly we'll be using this function, which produces a float, then show equivalence between it and the p3109 impl
 noncomputable def round_to_fp (rnd : RoundingMode) (x : ℝ) : float 2 :=
   let format := f.to_format;
@@ -91,6 +117,14 @@ noncomputable def round_to_fp (rnd : RoundingMode) (x : ℝ) : float 2 :=
   |.StochasticA N R h => @round_fp format (stochastic (.A N R h)) x
   |.StochasticB N R h => @round_fp format (stochastic (.B N R h)) x
   |.StochasticC N R h => @round_fp format (stochastic (.C N R h)) x
+
+-- commuting between round_fp and round_to_fp
+lemma round_to_fp_eq_round_fp_to_rnd {f : p3109_format} {m : RoundingMode} :
+  @round_to_fp f m x = @round_fp f.to_format (@to_rnd f m) x := by
+  simp [round_to_fp, to_rnd]
+  simp [round_to_zero_all]
+  simp [rne_abs, rna_float, round_nearest_all]
+  split <;> simp
 
 lemma round_to_fp_eq (x : ℝ) (rnd : RoundingMode) :
   @round_to_precision_generic f x rnd = @round_to_fp f rnd x := by
@@ -588,12 +622,13 @@ structure encode_ret (x : EReal ⊕ Unit) where
     |_ => True
 
 noncomputable def encode_aux (x : EReal ⊕ Unit)
-  (h : x ∈ Set.range (@value_set f)) : @encode_ret f x :=
+  (h : x ∈ value_set f) : @encode_ret f x :=
   match x with
   |Sum.inl ⊥ =>
     have : f.d = .extended ∧ f.s=.signed := by
       simp [value_set] at h
       let ⟨y, heq⟩ := h
+      simp [to_cereal] at heq
       split at heq <;> simp at heq
       constructor
       assumption
@@ -614,6 +649,7 @@ noncomputable def encode_aux (x : EReal ⊕ Unit)
     have : f.d = .extended := by
       simp [value_set] at h
       let ⟨y, heq⟩ := h
+      simp [to_cereal] at heq
       split at heq <;> simp at heq
       assumption
       expose_names
@@ -632,6 +668,7 @@ noncomputable def encode_aux (x : EReal ⊕ Unit)
       simp [value_set] at h
       let ⟨y, heq⟩ := h
       clear h
+      simp [to_cereal] at heq
       split at heq <;> simp at heq
       expose_names
       exists m, e
@@ -679,10 +716,10 @@ noncomputable def encode_aux (x : EReal ⊕ Unit)
         simp ⟩
 
 noncomputable def encode (x : EReal ⊕ Unit)
-  (h : x ∈ Set.range (@value_set f)) :  p3109 f  :=
+  (h : x ∈ value_set f) :  p3109 f  :=
   (@encode_aux f x h).a
 
-def encode_m (x : EReal ⊕ Unit) (h : x ∈ Set.range (@value_set f)) :=
+def encode_m (x : EReal ⊕ Unit) (h : x ∈ value_set f) :=
   (@encode_aux f x h).h
 
 lemma canonical_in_range_after_round_sat (x : EReal) (sat : SaturationMode) (rnd : RoundingMode) (r : ℝ) :
@@ -813,7 +850,7 @@ lemma saturate_bot_signed (x : EReal) (rnd : RoundingMode) (sat : SaturationMode
 noncomputable def in_value_set (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
   let R := @round_to_precision f x rnd;
   let S := @saturate f R sat rnd;
-  Sum.inl S ∈ Set.range (@value_set f) := by
+  Sum.inl S ∈ value_set f := by
     simp [value_set]
     set R := @round_to_precision f x rnd with hr
     set S := @saturate f R sat rnd with hs
@@ -842,7 +879,7 @@ noncomputable def in_value_set (x : EReal) (rnd : RoundingMode) (sat : Saturatio
     rcases y
     expose_names
     cases sign
-    simp
+    simp [to_cereal]
     simp [to_p3109] at hy
     simp [to_p3109] at hy
     simp [to_p3109] at hy
@@ -852,5 +889,5 @@ noncomputable def in_value_set (x : EReal) (rnd : RoundingMode) (sat : Saturatio
       simp [hy]
       simp [to_real]
       simp [_root_.to_real]
-    simp [heq, <-this, hy, to_real]
+    simp [heq, <-this, hy, to_real, to_cereal]
     simp [hs, hr]

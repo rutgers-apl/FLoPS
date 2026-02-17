@@ -323,10 +323,10 @@ theorem ExtractScalar_properties {f : Format} (σ p : float 2) (M : ℤ) :
   have hq_exact := this
   have : (p:ℝ)=q+p' := by
     have := @fast2sum_rne_t_exact f
-      σ p hsigma hp
+      σ p (round_choice_abs (@to_even' f)) (round_choice_abs (@to_even' f)) _ _ hsigma hp
       (by apply exp_le_of_real_le_pos hp hsigma hp_le_sigma; simp [hsigmaeq]; apply zpow_pos; simp)
     simp [rne_abs] at hs hq hp'
-    simp [fast2sum_rne, <-hs, <-hq, <-hp'] at this
+    simp [fast2sum_op, <-hs, <-hq, <-hp'] at this
     linarith
   simp [this]
 
