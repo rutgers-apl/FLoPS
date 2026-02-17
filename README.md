@@ -1,6 +1,9 @@
 # Semantics, Operations, and Properties of P3109 Floating-Point Representations in Lean
 
-by [Tung-Che Chang](https://farmerzhang1.github.io/), [Sehyeok Park](https://people.cs.rutgers.edu/~santosh.nagarakatte/rapl/index.html), [Jay P Lim] (https://dongura.me/), and [Santosh Nagarakatte](https://people.cs.rutgers.edu/~santosh.nagarakatte/)
+by [Tung-Che Chang](https://farmerzhang1.github.io/), [Sehyeok
+Park](https://people.cs.rutgers.edu/~santosh.nagarakatte/rapl/index.html),
+[Jay P Lim](https://dongura.me/), and [Santosh
+Nagarakatte](https://people.cs.rutgers.edu/~santosh.nagarakatte/)
 
 The FLoPS framework formalizes the upcoming IEEE P3109 standard in
 Lean.
