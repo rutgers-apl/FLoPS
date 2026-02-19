@@ -31,6 +31,12 @@ precision. This work provides a verified foundation for reasoning
 about P3109 and enables formal verification of future numerical
 software.
 
+Full details of the FLoPS framework is available in our paper, [FLoPS:
+Semantics, Operations, and Properties of P3109 Floating-Point
+Representations in Lean (pdf)](https://arxiv.org/pdf/2602.15965),
+Rutgers Department of Computer Science Technical Report DCS-TR-762,
+February 2026
+
 ## Project Structure
 
 The outer directory, Flops, contains the general definition of the
