@@ -46,6 +46,8 @@ directory Flops/P3109 is the formalization of the P3109 standard. The
 directory can be grouped into three parts:
 - Formalization of definitions from the standard: `Defs.lean`, `Rounding.lean`, `Projection.lean`, `KApproximate.lean`. `Defs.lean` contains the P3109 algebraic data type.
 
+- Rounding properties: `RtoProperty.lean`, `StochasticProperties.lean`, `RoundingProjection.lean`.
+
 - Correctness guarantees: `Emax.lean`, `Bijection.lean`, `RoundTrip.lean`.
 
 - Properties of P3109 arithmetic: `Sterbenz.lean`, `Fast2Sum.lean`, `Fast2SumSat.lean`, `Scalar.lean`.
