@@ -1,4 +1,7 @@
-import Flops.Defs
+import Flops.Core.Defs
+
+variable {β : ℕ} (hβ : β > 1) {format : Format}
+include hβ
 
 -- fundamental result, the theorem comes handy
 -- because fminus, although typically doesn't produce a bounded number (it doesn't provide rounding)
@@ -14,7 +17,6 @@ theorem sterbenz (f g : float β) :
   intros Hf Hg H1 H2
   unfold to_real at H1 H2
   unfold fminus fplus falign fopp ite
-  simp [fminus, fplus, falign, fopp, *]
   cases f.exp.decLe g.exp <;> apply And.intro <;> simp
   . have H : f.exp > g.exp := by omega
     have H3 : g.fnum ≤ 2 * f.fnum * β ^ (f.exp - g.exp).toNat := by
@@ -25,13 +27,12 @@ theorem sterbenz (f g : float β) :
         rw [mul_div]
         rw [mul_div, <-mul_assoc]
         refine (le_div_iff₀ ?_).mpr ?_
-        apply βexppos
+        apply βexppos hβ
         rw [mul_assoc, mul_comm 2]
         rw [<-div_le_iff₀]
         assumption
         norm_cast
         norm_cast
-        have := @βge0 β
         omega
       simp
       omega
@@ -44,9 +45,8 @@ theorem sterbenz (f g : float β) :
         rw [mul_div]
         rw [div_le_iff₀, mul_assoc]
         assumption
-        apply βexppos
+        apply βexppos hβ
         norm_cast
-        have := @βge0 β
         omega
       simp
       omega
@@ -71,9 +71,8 @@ theorem sterbenz (f g : float β) :
         rw [<-div_le_iff₀']
         assumption
         norm_cast
-        apply βexppos
+        apply βexppos hβ
         norm_cast
-        have := @βge0 β
         omega
       simp
       omega
@@ -85,9 +84,8 @@ theorem sterbenz (f g : float β) :
         rw [mul_div, le_div_iff₀, mul_assoc]
         assumption
         norm_cast
-        apply βexppos
+        apply βexppos hβ
         norm_cast
-        have := @βge0 β
         omega
       simp
       omega

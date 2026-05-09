@@ -156,7 +156,6 @@ lemma value_steps_eq_zero_implies_eq {f : p3109_format} (a b : p3109 f) :
   simp [abs_mul, mul_comm] at hle; exact hle
   simp [to_format] at heeq hemin
   exfalso; omega
-  simp [abs_mul]
   refine mul_le_mul (by simp) ?_ (by simp) (by simp)
   rw [abs_of_pos (by apply zpow_pos; simp)]
   rw [abs_of_pos (by apply zpow_pos; simp)]

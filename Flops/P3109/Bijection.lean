@@ -351,77 +351,17 @@ def n_to_p3109 {f : p3109_format} (n : Fin (2^f.K)) : p3109 f :=
 
 lemma n_to_p_negate {f : p3109_format} (n : ℕ) (hs : f.s = .signed) (hn : n ≠ 0) (hlt : n < 2^(f.K-1)) :
   @opp f (@n_to_p3109 f ⟨n, by apply lt_of_lt_of_le hlt; rw [Nat.pow_le_pow_iff_right (by simp)]; omega⟩) hs = @n_to_p3109 f ⟨n+2^(f.K-1), by rewrite (occs := .pos [2]) [<-Nat.sub_add_cancel (n := f.K) (m := 1) (by have _ := f.h_K; omega)]; simp [pow_add, mul_two]; exact hlt⟩ := by
-  have hp := f.h_P
-  have hk := f.h_K
-  rewrite (occs := .pos [1]) [n_to_p3109]
-  split; exfalso; omega
-  split; exfalso
-  revert hlt; simp
-  expose_names
-  simp [h_1.1]
-  rewrite (occs := .pos [2]) [<-Nat.sub_add_cancel (n := f.K) (m := 1) (by omega)]
-  simp [pow_add, mul_two]
-  suffices 0 < 2^(f.K-1) by omega
-  simp
-  split; simp [opp]
-  expose_names
-  have : n+2^(f.K-1)=2^f.K-1 := by
-    simp [h_2.1];
-    rewrite (occs := .pos [3]) [<-Nat.sub_add_cancel (n := f.K) (m := 1) (by omega)]
-    simp [pow_add, mul_two]
-    omega
-
-  simp [n_to_p3109, this, h_2.2.1, h_2.2.2]
-  split; exfalso
-  expose_names; revert h_3; simp
-  apply ne_of_gt
-  rewrite (occs := .pos [2]) [<-Nat.sub_add_cancel (n := f.K) (m := 1) (by omega)]
-  simp [pow_add, mul_two]
-  suffices 0 < 2^(f.K-1) by omega
-  simp
-  split; exfalso
-  expose_names
-  have _ : 0 < 2^f.K := by simp
-  have _ : 0 < 2^(f.K-1) := by simp
-  have : 2^f.K=2^(f.K-1):= by omega
-  simp at this
-  revert this; simp
-  omega
-  simp
-  split; exfalso
-  revert hlt; simp
-  expose_names
-  simp [h_3.1]
-  rewrite (occs := .pos [2]) [<-Nat.sub_add_cancel (n := f.K) (m := 1) (by omega)]
-  simp [pow_add, mul_two]
-  suffices 2^0 ≤ 2^(f.K-1) by omega
-  rw [Nat.pow_le_pow_iff_right (by simp)]
-  omega
-  split; exfalso; simp_all only [reduceCtorEq]
-  split; exfalso; omega
-  simp [n_to_p3109]
-  split; exfalso; omega
-  split; exfalso; simp_all only [reduceCtorEq]
-  split; exfalso; omega
-  split; exfalso; expose_names; simp [h_9.2.1, h_9.2.2] at *
-  revert h_9; simp
-  apply ne_of_lt
-  rewrite (occs := .pos [2]) [<-Nat.sub_add_cancel (n := f.K) (m := 1) (by omega)]
-  simp [pow_add, mul_two]
-  omega
-  split; exfalso; expose_names; simp [h_10.2.1, h_10.2.2] at *
-  split
-  simp [n_to_p3109_finite]
-  expose_names
-  simp [hs] at h_11
-  exfalso
-  clear * - h_11 hn hlt
-  have := h_11 (by omega)
-  have hk := f.h_K
-  revert this; simp
-  rewrite (occs := .pos [2]) [<-Nat.sub_add_cancel (n := f.K) (m := 1) (by omega)]
-  simp [pow_add, mul_two]
-  exact hlt
+  generalize_proofs at *;
+  unfold n_to_p3109; simp +decide [ hs ] ;
+  split_ifs <;> try omega;
+  · simp [opp];
+  · grind +ring;
+  · cases f ; simp_all +decide [ Nat.pow_succ' ];
+    cases ‹Domain› <;> simp_all +decide [ Nat.pow_succ' ];
+    · lia;
+    · rename_i k hk₁ hk₂ hk₃ hk₄ hk₅ hk₆ hk₇;
+      grind +suggestions;
+  · rfl
 
 -- Given a natural number n, extract them into m and e.
 lemma extract_m_e {f : p3109_format} (n m e: ℕ) :
@@ -437,140 +377,84 @@ lemma extract_m_e {f : p3109_format} (n m e: ℕ) :
   rw [Int.add_mul_ediv_right _ _ (by apply ne_of_gt; simp)]
   simp; norm_cast; simp; exact hm
 
-lemma normal_encode_in_bound' {m e : ℤ} :
-  2^(f.P-1) ≤ m →
-  m < 2^f.P →
-  f.emin_lsb ≤ e →
-  e ≤ f.emax_lsb →
-  (m-2^(f.P-1)).toNat + (e+f.P-1+f.bias).toNat*2^(f.P-1) < 2^f.K := by
-  intro hle hlt hemin hemax
+private lemma normal_encode_bound_gen {m e : ℤ} {bound : ℕ}
+  (hle : 2^(f.P-1) ≤ m) (hlt : m < 2^f.P)
+  (hemin : f.emin_lsb ≤ e) (hemax : e ≤ f.emax_lsb)
+  (hbound : f.P - 1 + f.W ≤ bound) :
+  (m-2^(f.P-1)).toNat + (e+f.P-1+f.bias).toNat*2^(f.P-1) < 2^bound := by
   have hp := f.h_P
-  zify
-  simp
+  zify; simp
   rw [max_eq_left (by omega)]
   simp [emin_lsb, emin] at hemin
   rw [max_eq_left (by omega)]
   rw [<-Nat.sub_add_cancel (n := f.P) (m := 1) (by omega), pow_add] at hlt
   simp [mul_two] at hlt
-  suffices 2^(f.P-1) + (e + ↑f.P - 1 + f.bias) * 2 ^ (f.P - 1) ≤ 2 ^ f.K by omega
+  suffices 2^(f.P-1) + (e + ↑f.P - 1 + f.bias) * 2 ^ (f.P - 1) ≤ (2 : ℤ) ^ bound by omega
   have : (e+f.P-1+f.bias)*2^(f.P-1)≤(2^f.W-1)*2^(f.P-1) := by
     refine Int.mul_le_mul_of_nonneg_right ?_ (by simp)
-    apply le_trans _ emax_le
-    simp
-    exact hemax
-  suffices (2:ℤ)^(f.P-1)+(2^f.W-1)*2^(f.P-1) ≤ 2^(f.K) by omega
-  simp [sub_mul]
-  rw [<-pow_add]
-  simp [W]
-  rw [pow_le_pow_iff_right₀ (by simp)]
-  split; expose_names
-  simp [heq] at hp; omega
-  expose_names
-  simp [heq] at hp; omega
+    apply le_trans _ emax_le; simp; exact hemax
+  suffices (2:ℤ)^(f.P-1)+(2^f.W-1)*2^(f.P-1) ≤ (2 : ℤ) ^ bound by omega
+  simp [sub_mul]; rw [<-pow_add]
+  exact pow_le_pow_right₀ (by norm_num) (by omega)
+
+lemma normal_encode_in_bound' {m e : ℤ} :
+  2^(f.P-1) ≤ m → m < 2^f.P → f.emin_lsb ≤ e → e ≤ f.emax_lsb →
+  (m-2^(f.P-1)).toNat + (e+f.P-1+f.bias).toNat*2^(f.P-1) < 2^f.K :=
+  fun hle hlt hemin hemax => normal_encode_bound_gen hle hlt hemin hemax
+    (by have ⟨_, h2, h3⟩ := f.h_P; simp only [W]; cases hs : f.s
+        · have := h2 hs; simp; omega
+        · have := h3 hs; simp; omega)
 
 lemma normal_signed_encode_in_bound' {m e : ℤ} :
-  f.s = .signed →
-  2^(f.P-1) ≤ m →
-  m < 2^f.P →
-  f.emin_lsb ≤ e →
-  e ≤ f.emax_lsb →
-  (m-2^(f.P-1)).toNat + (e+f.P-1+f.bias).toNat*2^(f.P-1) < 2^(f.K-1) := by
-  intro hus hle hlt hemin hemax
+  f.s = .signed → 2^(f.P-1) ≤ m → m < 2^f.P → f.emin_lsb ≤ e → e ≤ f.emax_lsb →
+  (m-2^(f.P-1)).toNat + (e+f.P-1+f.bias).toNat*2^(f.P-1) < 2^(f.K-1) :=
+  fun hs hle hlt hemin hemax => normal_encode_bound_gen hle hlt hemin hemax
+    (by have ⟨_, h2, _⟩ := f.h_P; simp only [W, hs]; have := h2 hs; omega)
+
+private lemma normal_p3109_to_bounds {m e : ℤ} (hm : 0 ≤ m) (hn : @normal_p3109 f ⟨m, e⟩) :
+  2^(f.P-1) ≤ m ∧ m < 2^f.P ∧ f.emin_lsb ≤ e ∧ e ≤ f.emax_lsb := by
+  rcases hn with ⟨⟨hmlt, he1⟩, hmle, he2, _⟩
+  simp at *; simp [to_format] at he1
+  simp [vnum, to_format, abs_mul] at hmlt hmle
+  rw [abs_of_nonneg hm] at hmlt hmle
+  refine ⟨?_, hmlt, he1, he2⟩
   have hp := f.h_P
-  zify
-  simp
-  rw [max_eq_left (by omega)]
-  simp [emin_lsb, emin] at hemin
-  rw [max_eq_left (by omega)]
-  rw [<-Nat.sub_add_cancel (n := f.P) (m := 1) (by omega), pow_add] at hlt
-  simp [mul_two] at hlt
-  suffices 2^(f.P-1) + (e + ↑f.P - 1 + f.bias) * 2 ^ (f.P - 1) ≤ 2 ^ (f.K-1) by omega
-  have : (e+f.P-1+f.bias)*2^(f.P-1)≤(2^f.W-1)*2^(f.P-1) := by
-    refine Int.mul_le_mul_of_nonneg_right ?_ (by simp)
-    apply le_trans _ emax_le
-    simp
-    exact hemax
-  suffices (2:ℤ)^(f.P-1)+(2^f.W-1)*2^(f.P-1) ≤ 2^(f.K-1) by omega
-  simp [sub_mul]
-  rw [<-pow_add]
-  simp [W]
-  rw [pow_le_pow_iff_right₀ (by simp)]
-  simp [hus] at ⊢ hp
-  omega
+  rify; rw [<-zpow_natCast, Int.ofNat_sub (by omega), zpow_sub₀ (by simp)]
+  simp; rw [div_le_iff₀ (by simp)]
+  norm_cast at ⊢ hmle; rify at hmle; norm_cast at hmle
+  apply le_trans hmle; simp [mul_comm]
 
 lemma normal_encode_in_bound {m e : ℤ} :
-  0 ≤ m →
-  @normal_p3109 f ⟨m, e⟩ →
+  0 ≤ m → @normal_p3109 f ⟨m, e⟩ →
   (m-2^(f.P-1)).toNat + (e+f.P-1+f.bias).toNat*2^(f.P-1) < 2^f.K := by
-  intro hm hn
-  rcases hn with ⟨⟨hmlt, he1⟩, hmle, he2, _⟩
-  simp at *
-  simp [to_format] at he1
-  simp [vnum, to_format, abs_mul] at hmlt hmle
-  rw [abs_of_nonneg hm] at hmlt hmle
-  apply normal_encode_in_bound'
-  have hp := f.h_P
-  rify; rw [<-zpow_natCast, Int.ofNat_sub (by omega), zpow_sub₀ (by simp)]
-  simp; rw [div_le_iff₀ (by simp)]
-  norm_cast at ⊢ hmle;
-  rify at hmle; norm_cast at hmle
-  apply le_trans hmle; simp [mul_comm]
-  exact hmlt
-  exact he1
-  exact he2
+  intro hm hn; obtain ⟨h1, h2, h3, h4⟩ := normal_p3109_to_bounds hm hn
+  exact normal_encode_in_bound' h1 h2 h3 h4
 
 lemma subnormal_encode_in_bound {m e : ℤ} :
-  0 ≤ m →
-  @subnormal 2 f.to_format ⟨m, e⟩ →
-  m.toNat < 2^f.K := by
-  rintro hm ⟨_, _, hlt⟩
-  zify; simp
+  0 ≤ m → @subnormal 2 f.to_format ⟨m, e⟩ → m.toNat < 2^f.K := by
+  rintro hm ⟨_, _, hlt⟩; zify; simp
   simp [vnum, to_format, abs_mul] at hlt
   rw [abs_of_nonneg hm, two_mul_pow_lt] at hlt
-  apply lt_of_lt_of_le hlt
-  have _ := f.h_P
-  have : f.P≤f.K := by
-    cases hs:f.s <;> {simp [hs] at *; omega}
-  norm_cast
-  rw [Nat.pow_le_pow_iff_right (by simp)]; omega
+  apply lt_of_lt_of_le hlt; norm_cast
+  rw [Nat.pow_le_pow_iff_right (by simp)]
+  have ⟨_, h2, h3⟩ := f.h_P; cases hs : f.s
+  · have := h2 hs; omega
+  · have := h3 hs; omega
 
 lemma subnormal_signed_encode_in_bound {m e : ℤ} :
-  f.s=.signed→
-  0 ≤ m →
-  @subnormal 2 f.to_format ⟨m, e⟩ →
-  m.toNat < 2^(f.K-1) := by
-  rintro hs hm ⟨_, _, hlt⟩
-  zify; simp
+  f.s=.signed→ 0 ≤ m → @subnormal 2 f.to_format ⟨m, e⟩ → m.toNat < 2^(f.K-1) := by
+  rintro hs hm ⟨_, _, hlt⟩; zify; simp
   simp [vnum, to_format, abs_mul] at hlt
   rw [abs_of_nonneg hm, two_mul_pow_lt] at hlt
-  apply lt_of_lt_of_le hlt
-  have := f.h_P
-  simp [hs] at this
-  norm_cast
-  rw [Nat.pow_le_pow_iff_right (by simp)]; omega
+  apply lt_of_lt_of_le hlt; norm_cast
+  rw [Nat.pow_le_pow_iff_right (by simp)]
+  have ⟨_, h2, _⟩ := f.h_P; have := h2 hs; omega
 
 lemma normal_signed_encode_in_bound {m e : ℤ} :
-  f.s = .signed →
-  0 ≤ m →
-  @normal_p3109 f ⟨m, e⟩ →
+  f.s = .signed → 0 ≤ m → @normal_p3109 f ⟨m, e⟩ →
   (m-2^(f.P-1)).toNat + (e+f.P-1+f.bias).toNat*2^(f.P-1) < 2^(f.K-1) := by
-  intro hs hm hn
-  rcases hn with ⟨⟨hmlt, he1⟩, hmle, he2, _⟩
-  simp at *
-  simp [to_format] at he1
-  simp [vnum, to_format, abs_mul] at hmlt hmle
-  rw [abs_of_nonneg hm] at hmlt hmle
-  apply normal_signed_encode_in_bound'
-  exact hs
-  have hp := f.h_P
-  rify; rw [<-zpow_natCast, Int.ofNat_sub (by omega), zpow_sub₀ (by simp)]
-  simp; rw [div_le_iff₀ (by simp)]
-  norm_cast at ⊢ hmle;
-  rify at hmle; norm_cast at hmle
-  apply le_trans hmle; simp [mul_comm]
-  exact hmlt
-  exact he1
-  exact he2
+  intro hs hm hn; obtain ⟨h1, h2, h3, h4⟩ := normal_p3109_to_bounds hm hn
+  exact normal_signed_encode_in_bound' hs h1 h2 h3 h4
 
 theorem normal_pos_surj {m e : ℤ} (hs : f.s = .unsigned → 0 ≤ m) (hn : @normal_p3109 f ⟨m, e⟩) (h : 0 ≤ m) :
   @n_to_p3109 f ⟨(m-2^(f.P-1)).toNat + (e+f.P-1+f.bias).toNat*2^(f.P-1), by
@@ -975,107 +859,51 @@ theorem normal_pos_surj {m e : ℤ} (hs : f.s = .unsigned → 0 ≤ m) (hn : @no
 
 theorem subnormal_pos_surj {m e : ℤ} (hs : f.s = .unsigned → 0 ≤ m) (hsub : @subnormal 2 f.to_format ⟨m, e⟩) (hle : 0 ≤ m) :
   @n_to_p3109 f ⟨m.toNat, by exact subnormal_encode_in_bound hle hsub⟩ = .p3109_finite m e hs (Or.inr hsub) := by
-  have hp := f.h_P
-  rcases hsub with ⟨⟨hlt1, _⟩, hemin, hlt2⟩
-  simp [to_format, vnum] at hlt1 hlt2 hemin
-  simp [emin_lsb, emin] at hemin
-  simp [n_to_p3109]
-  split; exfalso; expose_names
-  zify at h; simp at h; rw [max_eq_left (by omega)] at h
-  simp [h.1] at hlt1 hlt2
-  simp [h.2] at hp
-  revert hlt1; simp
-  norm_cast
-  apply le_trans (b := 2^(f.K-1))
-  rw [Nat.pow_le_pow_iff_right (by simp)]; omega
-  rw [Nat.pow_le_pow_iff_right (by simp)]
-
-  split; exfalso; expose_names
-  zify at h_1; simp at h_1; rw [max_eq_left (by omega)] at h_1
-  simp [h_1] at hlt1 hlt2
-  simp [h_1.2] at hp
-  simp [abs_mul] at hlt2
-  rw [abs_of_nonneg (by simp; norm_cast; apply Nat.one_le_pow; simp)] at hlt1 hlt2
-  rw [mul_sub] at hlt2; revert hlt2; simp
-  apply le_trans (b := 2^f.K)
-  rw [pow_le_pow_iff_right₀ (by simp)]; omega
-  rw [two_mul]
-  suffices 2^1 ≤ (2^f.K:ℤ) by omega
-  rw [pow_le_pow_iff_right₀ (by simp)]; omega
-
-  split; exfalso; expose_names
-  have hk := f.h_K
-  zify at h_2; simp at h_2; rw [max_eq_left (by omega)] at h_2
-  simp [h_2.1] at hlt1 hlt2
-  simp [h_2.2.1] at *;
-  rw [abs_of_nonneg (by simp; norm_cast; apply Nat.one_le_pow; simp)] at hlt1 hlt2
-  revert hlt2; simp; rw [mul_sub]; simp
-  apply le_trans (b := 2^(f.K-1))
-  rw [pow_le_pow_iff_right₀ (by simp)]; omega
-  rw [two_mul]
-  suffices 2^1 ≤ (2:ℤ)^(f.K-1) by omega
-  rw [pow_le_pow_iff_right₀ (by simp)]; omega
-
-  split; exfalso; expose_names
-  zify at h_3; simp at h_3; rw [max_eq_left (by omega)] at h_3
-  simp [h_3.1] at hlt1 hlt2
-  simp [h_3.2.1] at *
-  rw [abs_of_nonneg (by simp; norm_cast; apply Nat.one_le_pow; simp)] at hlt1 hlt2
-  revert hlt2; simp
-  apply le_trans (b := 2^(f.K))
-  rw [pow_le_pow_iff_right₀ (by simp)]; omega
-  rw [two_mul]
-  suffices 2^1 ≤ (2:ℤ)^(f.K) by omega
-  rw [pow_le_pow_iff_right₀ (by simp)]; omega
-
-  split; expose_names; exfalso
-  have hk := f.h_K
-  zify at h_4; simp at h_4; rw [max_eq_left (by omega)] at h_4
-  simp [abs_mul] at hlt2
-  have _ : 2^2 ≤ 2^f.K := by
-    rw [Nat.pow_le_pow_iff_right (by simp)]
-    omega
-  rw [Int.ofNat_sub (by omega)] at h_4; simp at h_4
-  rw [h_4.1] at hlt1 hlt2
-  rw [abs_of_nonneg (by omega)] at hlt1 hlt2
-  simp [h_4.2.1] at *
-  revert hlt2; simp
-  apply le_trans (b := 2^(f.K))
-  rw [pow_le_pow_iff_right₀ (by simp)]; omega
-  rw [two_mul]
-  suffices 2^2 ≤ (2:ℤ)^(f.K) by omega
-  norm_cast
-
-  split; exfalso; expose_names
-  have ⟨hf, _⟩ := h_5; revert hf; simp
-  simp [abs_mul] at hlt2; rw [abs_of_nonneg (by omega)] at hlt2
-  rify at hlt2; rw [<-lt_div_iff₀' (by simp)] at hlt2
-  rify; apply le_of_lt; apply lt_of_lt_of_le hlt2
-  rw [div_le_iff₀ (by simp)]
-  simp [h_5] at hp
-  norm_cast
-  apply le_trans (b := 2^(f.K-1))
-  rw [pow_le_pow_iff_right₀ (by simp)]; omega
-  simp
-  simp [n_to_p3109_finite]
-  -- cases lt_or_eq_of_le hle
-  simp [abs_mul] at hlt2
-  rw [abs_of_nonneg (by omega)] at hlt2
-  rify at hlt2; rw [<-lt_div_iff₀' (by simp)] at hlt2
-  rewrite (occs := .pos [3]) [<-pow_one 2] at hlt2
-  rw [<-zpow_natCast, <-zpow_natCast, <-zpow_sub₀ (by simp)] at hlt2
-  norm_cast at hlt2
-  rw [Int.subNatNat_of_le (by omega)] at hlt2; simp at hlt2; norm_cast at hlt2; zify at hlt2
-  rw [dif_pos (by rw [max_eq_left (by omega)]; apply Int.ediv_eq_zero_of_lt; exact hle; exact hlt2)]
-  simp
-  rw [max_eq_left (by omega)]
-  constructor
-  refine Int.emod_eq_of_lt hle ?_
-  exact hlt2
-  simp [hemin]
-  suffices m / 2^(f.P-1)=0 by omega
-  refine Int.ediv_eq_zero_of_lt hle ?_
-  exact hlt2
+  cases hsub;
+  unfold n_to_p3109;
+  have h_subnormal : m < 2^(f.P-1) := by
+    unfold vnum at *; norm_cast at *; simp_all +decide [ abs_of_nonneg ] ;
+    cases f ; simp_all +decide [ p3109_format.to_format ];
+    cases ‹ℕ› <;> simp_all +decide [ pow_succ' ] ; linarith;
+  have h_subnormal : m.toNat < 2^(f.K-1) := by
+    cases f ; simp_all +decide [ pow_succ' ];
+    cases ‹Signedness› <;> cases ‹Domain› <;> simp_all +decide [ p3109_format.to_format ];
+    · exact h_subnormal.trans_le ( pow_le_pow_right₀ ( by decide ) ( Nat.sub_le_sub_right ( by linarith [ ‹ ( _ : ℕ ) > 0 ∧ ( Signedness.signed = Signedness.signed → _ ) ∧ _›.2.1 rfl ] ) _ ) );
+    · exact h_subnormal.trans_le ( pow_le_pow_right₀ ( by decide ) ( Nat.sub_le_sub_right ( by linarith [ ‹ ( _ : ℕ ) > 0 ∧ ( Signedness.signed = Signedness.signed → _ ) ∧ _›.2.1 rfl ] ) _ ) );
+    · exact h_subnormal.trans_le ( pow_le_pow_right₀ ( by decide ) ( Nat.sub_le_sub_right ( by tauto ) _ ) );
+    · exact h_subnormal.trans_le ( pow_le_pow_right₀ ( by decide ) ( Nat.sub_le_sub_right ( by aesop ) _ ) );
+  simp +zetaDelta at *;
+  split_ifs <;> norm_cast at * <;> simp_all +decide;
+  any_goals linarith [ Int.toNat_of_nonneg hle ];
+  · rw [ ← Int.toNat_of_nonneg hle ] at *;
+    rcases k : f.K with ( _ | _ | k ) <;> simp_all +decide [ pow_succ' ];
+    · linarith [ f.h_K ];
+    · grind;
+  · cases abs_cases m <;> simp_all +decide [ vnum ];
+    · simp_all +decide [ p3109_format.to_format ];
+      have := f.h_P; simp_all +decide [ bounded_float ] ;
+      have h_subnormal : 2^(f.K-1) ≥ 2^f.P := by
+        exact pow_le_pow_right₀ ( by decide ) ( Nat.le_pred_of_lt this.2 );
+      grind;
+    · linarith;
+  · have h_contra : m.toNat < 2^(f.K-1) := by
+      grind;
+    rcases k : f.K with ( _ | _ | k ) <;> simp_all +decide [ pow_succ' ];
+    omega;
+  · have h_contra : m.toNat < 2^(f.K-1) := by
+      linarith [ Int.toNat_of_nonneg hle ];
+    rcases k : f.K with ( _ | _ | k ) <;> simp_all +decide [ pow_succ' ];
+    · linarith [ f.h_K ];
+    · omega;
+  · unfold n_to_p3109_finite;
+    simp +zetaDelta at *;
+    split_ifs <;> norm_cast at * <;> simp_all +decide;
+    · rw [ Int.emod_eq_of_lt ] <;> norm_num [ hle, ‹m < 2 ^ ( f.P - 1 ) › ];
+      unfold p3109_format.to_format at *; simp_all +decide ;
+      unfold p3109_format.emin_lsb; ring;
+      unfold p3109_format.emin; ring;
+    · rw [ max_eq_left hle ] at *;
+      exact False.elim <| ‹¬m / 2 ^ ( f.P - 1 ) = 0› <| Int.ediv_eq_zero_of_lt ( by linarith ) <| by linarith;
 
 theorem finite_surj_pos {x : p3109 f} :
   x.is_finite →
@@ -1115,77 +943,85 @@ lemma opp_eq_iff_eq_opp {x y : p3109 f} (hs : f.s = .signed) :
 theorem finite_surj {x : p3109 f} :
   x.is_finite →
   ∃(n : Fin (2^f.K)), @n_to_p3109 f n = x := by
-  cases x <;> simp [is_finite]
-  expose_names
-  have hk := f.h_K
-  have hp := f.h_P
-  cases m.decLt 0
-  apply finite_surj_pos
-  simp [is_finite]
-  simp [fnum]; omega
-  cases h
-  exists ⟨((-m)-2^(f.P-1)).toNat + (e+f.P-1+f.bias).toNat*2^(f.P-1)+2^(f.K-1), by
-    rewrite (occs := .pos [2]) [<-Nat.sub_add_cancel (n := f.K) (m := 1) (by omega)]
-    simp [pow_add, mul_two]
-    apply normal_signed_encode_in_bound
-    cases hs:f.s <;> simp [hs] at *
-    omega
-    omega
-    have := @normal_p3109_negate f ⟨m, e⟩ (by assumption)
-    simp [fopp] at this
-    exact this⟩
-  rw [<-n_to_p_negate _ (by cases h:f.s; simp; exfalso; simp [h] at hm; omega) ?_ ?_]
-  rw [opp_eq_iff_eq_opp]; simp [opp]
-  apply normal_pos_surj
-  have := @normal_p3109_negate f ⟨m, e⟩
-  simp [fopp] at this
-  apply this; assumption
-  omega
-  apply normal_signed_encode_in_bound
-  expose_names
-  clear hp h_1 hk
-  contrapose hm; simp
-  simp [h]
-  cases hs:f.s <;> simp [hs] at *
-  omega
-  have := @normal_p3109_negate f ⟨m, e⟩
-  simp [fopp] at this
-  apply this; assumption
-  apply ne_of_gt
-  suffices 0 < (e + ↑f.P - 1 + f.bias).toNat * 2 ^ (f.P - 1) by omega
-  zify; simp; expose_names
-  rcases h_1 with ⟨⟨_, hemin⟩, _, hemax, _⟩
-  simp [to_format, emin_lsb, emin] at hemin
-  omega
+  intro hx_finite;
+  by_cases h : f.s = .signed;
+  · by_cases h_nonneg : 0 ≤ x.fnum;
+    · exact finite_surj_pos hx_finite h_nonneg;
+    · -- Since $x.fnum < 0$, we have $opp x hs = x$.
+      obtain ⟨y, hy⟩ : ∃ y : p3109 f, @opp f y h = x ∧ 0 ≤ y.fnum := by
+        use @opp f x h;
+        cases x <;> simp_all +decide [ opp ];
+        · cases hx_finite;
+        · cases hx_finite;
+        · exact neg_nonneg_of_nonpos h_nonneg.le;
+      obtain ⟨n, hn⟩ : ∃ n : Fin (2^f.K), @n_to_p3109 f n = y := by
+        apply finite_surj_pos;
+        · cases y <;> aesop;
+        · exact hy.2;
+      by_cases hn_zero : n.val < 2^(f.K-1);
+      · have := @n_to_p_negate f n.val h (by
+        rintro h; simp_all +decide [ n_to_p3109 ] ;
+        split_ifs at hn <;> simp_all +decide [ n_to_p3109_finite ];
+        · exact absurd ‹0 = 2 ^ ( f.K - 1 ) › ( by positivity );
+        · exact absurd ‹0 = 2 ^ ( f.K - 1 ) - 1 ∧ f.d = Domain.extended›.1 ( ne_of_lt ( Nat.sub_pos_of_lt ( one_lt_pow₀ one_lt_two ( Nat.sub_ne_zero_of_lt ( by linarith [ f.h_K ] ) ) ) ) );
+        · exact absurd ‹0 = 2 ^ f.K - 1 ∧ f.d = Domain.extended›.1 ( ne_of_lt ( Nat.sub_pos_of_lt ( one_lt_pow₀ one_lt_two ( by linarith [ f.h_K ] ) ) ) );
+        · subst hn; simp_all +decide [ opp ] ;
+          lia) hn_zero
+        generalize_proofs at *;
+        aesop;
+      · use ⟨n.val - 2^(f.K-1), by
+          exact lt_of_le_of_lt ( Nat.sub_le _ _ ) n.2⟩
+        generalize_proofs at *;
+        have := n_to_p_negate ( n - 2 ^ ( f.K - 1 ) ) h ( by
+          cases lt_or_eq_of_le ( le_of_not_gt hn_zero ) <;> simp_all +decide [ Nat.sub_eq_iff_eq_add ];
+          · linarith;
+          · unfold n_to_p3109 at hn; simp_all +decide ;
+            cases hy.1 ; aesop ) ( by
+          rw [ tsub_lt_iff_left ] <;> try linarith;
+          rw [ ← two_mul, ← pow_succ', Nat.sub_add_cancel ( Nat.one_le_iff_ne_zero.mpr <| by linarith [ f.h_K ] ) ] ; exact n.2 )
+        generalize_proofs at *;
+        simp_all +decide [ Nat.sub_add_cancel ( le_of_not_gt hn_zero ) ];
+        rw [ ← hy.1, ← this, opp_opp_id ];
+  · have : f.s = .unsigned := by
+      exact Or.resolve_left ( by cases f.s <;> tauto ) h;
+    have := @finite_surj_pos f;
+    cases x <;> aesop
 
-  exists ⟨(-m).toNat+2^(f.K-1), by
-    rewrite (occs := .pos [2]) [<-Nat.sub_add_cancel (n := f.K) (m := 1) (by omega)]
-    simp [pow_add, mul_two]
-    have := @subnormal_signed_encode_in_bound f (-m) e
-      (by cases hs:f.s <;> simp [hs] at *; omega) (by omega) (by (expose_names; exact subnormal_negate h_1))
-    simp at this; exact this⟩
-  rw [<-n_to_p_negate _ (by cases h:f.s; simp; exfalso; simp [h] at hm; omega) ?_ ?_]
-  rw [opp_eq_iff_eq_opp]; simp [opp]
-  apply subnormal_pos_surj
-  apply subnormal_negate
-  assumption
+theorem bi_surj : Function.Surjective (@n_to_p3109 f) := by
+  intro x; rcases x with ( _ | _ | _ ) ;
+  · cases ‹Bool›;
+    · unfold n_to_p3109;
+      rcases f with ⟨ f_s, f_d, f_K, f_P, f_W, f_bias, f_h_P, f_h_K ⟩ ; simp +decide at *;
+      rcases f_K with ( _ | _ ) <;> simp +decide at *;
+      · use ⟨ 2 ^ ( f_s - 1 ) - 1, by
+          exact lt_of_le_of_lt ( Nat.sub_le _ _ ) ( pow_lt_pow_right₀ ( by decide ) ( Nat.pred_lt ( ne_bot_of_gt f_W ) ) ) ⟩
+        generalize_proofs at *;
+        grind;
+      · refine' ⟨ ⟨ 2 ^ f_s - 2, _ ⟩, _ ⟩ <;> norm_num;
+        grind +qlia;
+    · rename_i h₁ h₂;
+      use ⟨ 2^f.K - 1, by
+        exact Nat.sub_lt ( by norm_num ) ( by norm_num ) ⟩
+      generalize_proofs at *;
+      unfold n_to_p3109; simp +decide [ h₁, h₂ ] ;
+      split_ifs <;> norm_num at *;
+      · rcases k : f.K with ( _ | _ | k ) <;> simp_all +decide [ pow_succ' ];
+        · have := f.h_K; simp_all +decide ;
+        · grind;
+      · exact absurd ‹_› ( by linarith [ pow_lt_pow_right₀ ( by decide : 1 < 2 ) ( show f.K > f.K - 1 from Nat.sub_lt ( by linarith [ f.h_K ] ) zero_lt_one ), Nat.sub_add_cancel ( Nat.one_le_pow f.K 2 ( by decide ) ), Nat.sub_add_cancel ( Nat.one_le_pow ( f.K - 1 ) 2 ( by decide ) ) ] );
+  · by_cases hs : f.s = .signed;
+    · use ⟨2^(f.K-1), by
+        exact pow_lt_pow_right₀ ( by decide ) ( Nat.pred_lt ( ne_bot_of_gt f.h_K ) )⟩
+      generalize_proofs at *;
+      unfold n_to_p3109; aesop;
+    · cases h : f.s <;> simp_all +decide [ n_to_p3109 ];
+      use ⟨ 2 ^ f.K - 1, by
+        exact Nat.sub_lt ( by norm_num ) ( by norm_num ) ⟩
+      generalize_proofs at *;
+      grind;
+  · exact finite_surj trivial
 
-  omega
-  simp
-  expose_names
-  rcases h_1 with ⟨⟨_, _⟩, _, hlt⟩
-  simp [abs_mul, vnum, to_format] at hlt
-  rw [abs_of_neg (by assumption), two_mul_pow_lt] at hlt
-  apply lt_of_lt_of_le hlt
-  rw [pow_le_pow_iff_right₀ (by simp)]
-  have : f.s = .signed := by
-    cases hs:f.s <;> simp [hs] at *
-    revert hm; simp [h]
-  simp [this] at hp; omega
-  simp; assumption
-
-theorem bi : Function.Bijective (@n_to_p3109 f) := by
-  constructor
+theorem bi_inj : Function.Injective (@n_to_p3109 f) := by
   simp [Function.Injective]
   rintro ⟨a, _⟩ ⟨b, _⟩
   rewrite (occs := .pos [1]) [n_to_p3109]
@@ -1194,7 +1030,6 @@ theorem bi : Function.Bijective (@n_to_p3109 f) := by
   intro h
   expose_names
   simp [h_1.2] at h
-  -- simp at h_1
   by_contra hne
   have := h (by omega)
   split at this
@@ -1244,7 +1079,7 @@ theorem bi : Function.Bijective (@n_to_p3109 f) := by
   split; simp [opp]
   simp [decode_normal]; simp [opp]
   simp [n_to_p3109_finite]
-  split; simp [opp]; simp [decode_normal]
+  split; simp; simp [decode_normal]
   split; simp [n_to_p3109]
   split; simp
   split; simp
@@ -1265,7 +1100,6 @@ theorem bi : Function.Bijective (@n_to_p3109 f) := by
   split; exfalso; expose_names; simp [h_10.2.2] at h_4
   simp [n_to_p3109_finite]
   split; simp; simp [decode_normal]
-
   split;
   expose_names
   set fin := @n_to_p3109_finite f (a - 2^(f.K-1)) (n_to_p3109._proof_9 a h_5) (n_to_p3109._proof_15 a h_5) (n_to_p3109._proof_17 a h_5) (n_to_p3109._proof_18 a isLt h_3 h_5) (n_to_p3109._proof_19 a isLt h_3 h_5) (n_to_p3109._proof_20 a h_5) with hfin
@@ -1350,7 +1184,6 @@ theorem bi : Function.Bijective (@n_to_p3109 f) := by
   split; simp [n_to_p3109_finite]; split; simp; simp [decode_normal]
   split; simp [n_to_p3109_finite]; split; simp; simp [decode_normal]
   split;
-  -- the returned significands will be of different signs
   simp [n_to_p3109_finite]
   split
   split
@@ -1358,7 +1191,7 @@ theorem bi : Function.Bijective (@n_to_p3109 f) := by
   intro heqm _
   norm_cast at heqm
   expose_names
-  exfalso -- b is not 0
+  exfalso
   have := @Nat.div_add_mod (b-2^(f.K-1)) (2^(f.P-1))
   norm_cast at h_13 heqm
   simp [h_13, heqm.2] at this
@@ -1397,7 +1230,6 @@ theorem bi : Function.Bijective (@n_to_p3109 f) := by
   rw [<-Nat.div_add_mod (m := a) (n := 2^(f.P-1)), <-hma, <-hea]
   rw [<-Nat.div_add_mod (m := b) (n := 2^(f.P-1)), <-hmb, <-heb]
   simp [heqm, heqe]
-
   simp [decode_normal]
   intro heqm heqe
   exfalso
@@ -1422,43 +1254,7 @@ theorem bi : Function.Bijective (@n_to_p3109 f) := by
   rw [<-Nat.div_add_mod (m := b) (n := 2^(f.P-1)), <-hmb, <-heb]
   simp [heqm, heqe]
 
-  simp [Function.Surjective]
-  have hk := f.h_K
-  have _ : 2^2 ≤ 2^f.K := by rw [Nat.pow_le_pow_iff_right (by simp)]; omega
-  intro n
-  rcases n with ⟨hd, s⟩|_|⟨m, e, _, hcan⟩
-  cases s
-  cases h:f.s
-  exists ⟨2^(f.K-1)-1, by
-    apply lt_of_lt_of_le (b := 2^(f.K-1))
-    simp
-    rw [Nat.pow_le_pow_iff_right (by simp)]; simp⟩
-  simp [n_to_p3109, h, hd]
-  apply ne_of_lt; simp
-  exists ⟨2^f.K-2, by simp⟩
-  simp [n_to_p3109, hd, h]
-  apply ne_of_lt
-  omega
-  -- FIXME: need to get signedness from it!
-  expose_names
-  simp at hm
-  exists ⟨2^f.K-1, by simp⟩
-  simp [n_to_p3109, hd, hm]
-  rw [if_neg (by
-    apply ne_of_gt
-    rewrite (occs := .pos [2]) [<-Nat.sub_add_cancel (n := f.K) (m := 1) (by omega)]
-    simp [pow_add, mul_two]
-    suffices 2^0 < 2^(f.K-1) by omega
-    rw [Nat.pow_lt_pow_iff_right (by simp)]; omega),
-  dif_neg (by
-    apply ne_of_gt
-    have _ : 2^1 ≤ 2^(f.K-1) := by rw [Nat.pow_le_pow_iff_right (by simp)]; omega
-    suffices 2^(f.K-1)<2^f.K by omega
-    rw [Nat.pow_lt_pow_iff_right (by simp)]; omega)]
-  cases h:f.s
-  exists ⟨2^(f.K-1), by rw [Nat.pow_lt_pow_iff_right (by simp)]; have _ := f.h_K; omega⟩
-  simp [n_to_p3109, h]
-  exists ⟨2^(f.K)-1, by simp⟩
-  simp [n_to_p3109, h]
-  apply finite_surj
-  simp [is_finite]
+theorem bi : Function.Bijective (@n_to_p3109 f) := ⟨bi_inj, bi_surj⟩
+
+end p3109
+end p3109_format

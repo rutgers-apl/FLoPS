@@ -64,8 +64,12 @@ lemma max_m_nonneg :
   simp at heq
   rw [<-heq.1]
   expose_names
-  have _ := max_finite._proof_3 (Eq.mpr_not (Eq.refl (f.P = 1)) h_1)
-  assumption
+  have hp := f.h_P
+  simp [vnum, to_format]
+  have h2p : (4 : ℤ) ≤ 2^f.P := by
+    have : (4:ℤ) = 2^2 := by norm_num
+    rw [this, pow_le_pow_iff_right₀]; omega; simp
+  split <;> simp_all <;> omega
 
 lemma max_exp_emax :
   (@max_finite f).exp = f.emax_lsb := by
@@ -84,7 +88,7 @@ lemma max_fp_exp_emax :
   have := @max_is_finite f
   revert this
   rcases heq : @max_finite f with _|_|⟨m, e, _, _⟩ <;> simp [is_finite]
-  simp [to_float, exp]
+  simp [to_float]
   simp [max_finite] at heq
   split at heq
   simp at heq; omega
@@ -207,13 +211,12 @@ lemma all_le_max_finite (x : p3109 f) :
   have := @exp_lt_real_lt f (.p3109_finite mx ex ?_ ?_) (.p3109_finite m e ?_ ?_) ?_ ?_ ?_
   simp [to_real] at this
   rw [abs_of_nonneg, abs_of_nonneg] at this
+  rw [abs_of_nonneg, abs_of_nonneg] at this
   linarith
-  apply mul_nonneg
-  simp; simp [fnum] at hm; assumption
   apply zpow_nonneg; simp
-  apply mul_nonneg
+  simp [fnum] at hm ⊢; assumption
+  apply zpow_nonneg; simp
   simp; omega
-  apply zpow_nonneg; simp
   repeat assumption
   repeat simp [is_finite]
   simp [exp]; assumption
@@ -296,7 +299,7 @@ lemma min_finite_le_all (x : p3109 f) :
     intro hle
     exact neg_le.mp hle
     intro; exfalso; aesop
-    rcases h with ⟨hb, hm, he, hm'⟩|⟨hb, _, _⟩
+    rcases h with ⟨hb, hm, he, hm'⟩|⟨hb, _, hlt⟩
     left
     constructor
     apply bounded_negate _ hb
@@ -314,7 +317,7 @@ lemma min_finite_le_all (x : p3109 f) :
     right
     constructor
     apply bounded_negate _ hb
-    simp
+    simp at ⊢ hlt
     constructor <;> assumption
     simp [is_finite]
 

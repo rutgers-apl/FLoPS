@@ -1,5 +1,5 @@
-import Flops.RoundOp
-import Flops.Sterbenz
+import Flops.Core.RoundOp
+import Flops.Core.Sterbenz
 import Flops.P3109.Defs
 import Flops.P3109.MinMax
 import Flops.P3109.RoundingAux
@@ -9,18 +9,15 @@ import Mathlib.Order.BoundedOrder.Basic
 
 inductive RoundingMode where
   |RD|RU|RZ|RNE|RNA|RTO
-  |StochasticA (N:ℕ) (R:ℕ) (h : 0 < R ∧ R < 2^N)
-  |StochasticB (N:ℕ) (R:ℕ) (h : 0 < R ∧ R < 2^N)
-  |StochasticC (N:ℕ) (R:ℕ) (h : 0 < R ∧ R < 2^N)
+  |StochasticA (N:ℕ) (R:ℕ) (h : 0 ≤ R ∧ R < 2^N)
+  |StochasticB (N:ℕ) (R:ℕ) (h : 0 ≤ R ∧ R < 2^N)
+  |StochasticC (N:ℕ) (R:ℕ) (h : 0 ≤ R ∧ R < 2^N)
 
 inductive SaturationMode where
   |SatFinite|SatPropagate|OvfInf
 
 variable {f : p3109_format}
 
--- must be an axiom to connect finite sat mode and finite domain
-axiom domain_sat_consistent (sat : SaturationMode) :
-  f.d = .finite → ¬sat = .SatFinite → False
 
 noncomputable def round_to_precision_real (x : ℝ) (rnd : RoundingMode) : ℝ :=
   if x = 0 then 0 else
@@ -314,7 +311,7 @@ lemma round_to_fp_fixedpoint [Faithful rnd] {a b : float 2} :
   rw [emin_emax_eq _ hp] at heq
   simp [emin_lsb, emin, bias, heq] at hexpa hexpb
   suffices @bounded_float 2 f.to_format (fplus a b) by
-    rw [<-fplus_correct]
+    rw [<-fplus_correct (by omega)]
     apply round_fp_bounded_self _ _ this
   simp [to_real, hexpa, hexpb, max_finite] at hbounded
   rw [dif_neg (by omega)] at hbounded
@@ -608,21 +605,8 @@ def to_p3109 (x : float 2)
     right; assumption
   .p3109_finite x.fnum x.exp h1 h2
 
--- encode_ret has two structure, one is the return value of encode
--- another one is when the return value is finite, the properties of the significand
--- having the property wrapped together with return value is much easier for furthur reasoning
--- this is due to the difficulty of connecting theorems in tactic mode and programming mode
-structure encode_ret (x : EReal ⊕ Unit) where
-  a : p3109 f
-  h : a.is_finite → ¬x = Sum.inl 0 → match x with
-    |Sum.inl (r : ℝ) =>
-    let E := max (Int.log 2 |r|) (1-f.bias) - f.P + 1;
-    let S := r * 2^(-E)
-    a.fnum = S
-    |_ => True
-
-noncomputable def encode_aux (x : EReal ⊕ Unit)
-  (h : x ∈ value_set f) : @encode_ret f x :=
+noncomputable def encode (x : EReal ⊕ Unit)
+  (h : x ∈ value_set f) : p3109 f :=
   match x with
   |Sum.inl ⊥ =>
     have : f.d = .extended ∧ f.s=.signed := by
@@ -644,7 +628,7 @@ noncomputable def encode_aux (x : EReal ⊕ Unit)
       exfalso
       apply EReal.bot_ne_coe (m * (2^e))
       simp [<-heq]
-    ⟨.p3109_infinity this.1 true (by simp [this.2]), by simp [is_finite]⟩
+    .p3109_infinity this.1 true (by simp [this.2])
   |Sum.inl ⊤ =>
     have : f.d = .extended := by
       simp [value_set] at h
@@ -656,12 +640,13 @@ noncomputable def encode_aux (x : EReal ⊕ Unit)
       exfalso
       apply EReal.top_ne_coe (m * (2^e))
       simp [<-heq]
-    ⟨.p3109_infinity this false (by simp), by simp [is_finite]⟩
+    .p3109_infinity this false (by simp)
   |Sum.inr () =>
-    ⟨.p3109_nan, by simp [is_finite]⟩
+    .p3109_nan
   |Sum.inl (x : ℝ) =>
     if h0 : x = 0 then
-      ⟨.p3109_finite 0 (-f.to_format.dexp) (by simp) (by right; exact subnormal_0), by simp [h0]⟩ else
+      .p3109_finite 0 (-f.to_format.dexp) (by simp) (by right; exact subnormal_0 (by omega))
+    else
     let E := max (Int.log 2 |x|) (1-f.bias) - f.P + 1;
     let S := x * 2^(-E)
     have hme : ∃(m e : ℤ), m = S ∧ e = E ∧ (f.s = Signedness.unsigned → 0 ≤ m) ∧ @canonical_p3109 f ⟨m, e⟩ := by
@@ -696,31 +681,97 @@ noncomputable def encode_aux (x : EReal ⊕ Unit)
       simp [<-this]
       constructor <;> assumption
       simp; apply ne_of_gt; apply zpow_pos; simp
-    let m := Exists.choose hme
-    let e := Exists.choose_spec hme |> Exists.choose
-    let prop := Exists.choose_spec hme |> Exists.choose_spec
-    -- we can't use .p3109_finite S E because it's not type correct
-    -- but we do prove the fact that S = m
-    ⟨.p3109_finite m E prop.2.2.1 (by
-      rw [<-prop.2.1]
-      exact prop.2.2.2
-      ), by
-        simp [is_finite, fnum, exp]
-        split
-        expose_names
-        rw [lift_real_some_some] at heq
-        simp at heq
-        unfold m
-        rw [prop.1]
-        simp [S, heq, E]
-        simp ⟩
+    let m := ⌊S⌋
+    have hm_unsigned : f.s = Signedness.unsigned → 0 ≤ m := by
+      obtain ⟨m', _, hm'S, _, huns, _⟩ := hme
+      intro hs
+      change 0 ≤ ⌊S⌋
+      rw [← hm'S, Int.floor_intCast]
+      exact huns hs
+    have hm_canonical : @canonical_p3109 f ⟨m, E⟩ := by
+      obtain ⟨m', e', hm'S, he'E, _, hcan⟩ := hme
+      have hm_m' : m = m' := by
+        change ⌊S⌋ = m'
+        rw [← hm'S, Int.floor_intCast]
+      rw [hm_m', ← he'E]
+      exact hcan
+    .p3109_finite m E hm_unsigned hm_canonical
 
-noncomputable def encode (x : EReal ⊕ Unit)
-  (h : x ∈ value_set f) :  p3109 f  :=
-  (@encode_aux f x h).a
+/-
+When v is in the value set and v ≠ 0, v * 2^(-E) is an integer.
+-/
+lemma value_set_significand_int (v : ℝ) (h : Sum.inl (v : EReal) ∈ value_set f) (hv : v ≠ 0) :
+    let E := max (Int.log 2 |v|) (1-f.bias) - ↑f.P + 1
+    ∃ m : ℤ, (m : ℝ) = v * 2^(-E) := by
+  obtain ⟨m, e, hm⟩ : ∃ m e : ℤ, (m : ℝ) * 2^e = v ∧ @canonical_p3109 f ⟨m, e⟩ := by
+    obtain ⟨y, hy⟩ := h;
+    unfold p3109.to_cereal at hy;
+    cases y <;> norm_cast at hy;
+    · cases ‹Bool› <;> simp_all +decide [ p3109_infinity ];
+    · cases hy ; tauto;
+  have h_exp : e = max (Int.log 2 |v|) (1 - f.bias) - f.P + 1 := by
+    have := canonical_fp_of_canonical_p3109 _ hm.2;
+    have := @flt_equivalent' 2 f.to_format m e ?_ rfl;
+    · simp_all +decide [ fexp, digits_abs', to_format, emin_lsb, emin ];
+      rw [ ← hm.1 ];
+      norm_num [ abs_mul, abs_of_nonneg, zpow_nonneg ];
+      grind +suggestions;
+    · aesop;
+  use m;
+  rw [ ← h_exp, ← hm.1, mul_assoc, ← zpow_add₀ ] <;> norm_num
 
+lemma encode_fnum_eq (r : ℝ) (h : Sum.inl (r : EReal) ∈ value_set f) (hr : r ≠ 0) :
+    let E := max (Int.log 2 |r|) (1-f.bias) - f.P + 1
+    (@encode f (Sum.inl r) h).fnum = r * 2^(-E) := by
+  unfold encode;
+  split;
+  · cases ‹Sum.inl ( r : EReal ) = Sum.inl none›;
+  · cases ‹Sum.inl ( r : EReal ) = Sum.inl ( some none ) ›;
+  · contradiction;
+  · rename_i x hx₁ hx₂;
+    split_ifs <;> simp_all +decide [ EReal.coe_eq_coe_iff ];
+    · cases hx₁ ; aesop;
+    · obtain ⟨ m, hm ⟩ := value_set_significand_int _ x ‹_›;
+      convert hm using 1;
+      · convert Int.cast_inj.mpr ( Int.floor_eq_iff.mpr _ ) using 1;
+        · infer_instance;
+        · grind;
+      · cases hx₁ ; aesop
+
+/-- Backward-compatible wrapper: when encode returns a finite value for a nonzero input,
+    the significand field equals the scaled real value. -/
 def encode_m (x : EReal ⊕ Unit) (h : x ∈ value_set f) :=
-  (@encode_aux f x h).h
+  let a := @encode f x h
+  show a.is_finite → ¬x = Sum.inl 0 → match x with
+    |Sum.inl (r : ℝ) =>
+    let E := max (Int.log 2 |r|) (1-f.bias) - f.P + 1;
+    let S := r * 2^(-E)
+    a.fnum = S
+    |_ => True
+  from by
+    revert h
+    match x with
+    | Sum.inl ⊥ => intro _ _ _ _; trivial
+    | Sum.inl ⊤ => intro _ _ _ _; trivial
+    | Sum.inr () => intro _ _ _ _; trivial
+    | Sum.inl (r : ℝ) => intro h _ _ hnz; simp at hnz; exact encode_fnum_eq r h hnz
+
+/-
+When v is in the value set and v ≠ 0, encoding v and coercing back to EReal gives v.
+-/
+lemma encode_real_to_ereal_eq (v : ℝ) (h : Sum.inl (v : EReal) ∈ value_set f) (hv : v ≠ 0) :
+    (@encode f (Sum.inl (v : EReal)) h : EReal) = (v : EReal) := by
+  obtain ⟨m, hm⟩ := value_set_significand_int v h hv
+  have my_eq_v : (m : ℝ) * (2 : ℝ) ^ (max (Int.log 2 |v|) (1-f.bias) - f.P + 1) = v := by
+    rw [ hm, mul_assoc, ← zpow_add₀ ( by norm_num ), neg_add_cancel, zpow_zero, mul_one ]
+  have h_floor : ⌊v * (2 : ℝ) ^ (-(max (Int.log 2 |v|) (1-f.bias) - f.P + 1))⌋ = m := by
+    exact hm.symm ▸ Int.floor_intCast _;
+  unfold encode;
+  norm_num [ Real.toEReal ] at *;
+  convert congr_arg ( fun x : ℝ => ( x : EReal ) ) my_eq_v using 1;
+  rw [ ← h_floor ];
+  simp +decide [ Real.toEReal ];
+  split_ifs ; norm_cast
 
 lemma canonical_in_range_after_round_sat (x : EReal) (sat : SaturationMode) (rnd : RoundingMode) (r : ℝ) :
   let R := @round_to_precision f x rnd;
@@ -768,7 +819,9 @@ lemma canonical_in_range_after_round_sat (x : EReal) (sat : SaturationMode) (rnd
       simp [@min_fp_canonical, min_le_max]
 
 
-lemma saturate_ext_domain_ext (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
+lemma saturate_ext_domain_ext
+  (domain_sat_consistent : ∀ (sat : SaturationMode), f.d = .finite → ¬sat = .SatFinite → False)
+  (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
   @saturate f x sat rnd = ⊥ ∨ @saturate f x sat rnd = ⊤ →
   f.d = .extended := by
   unfold saturate
@@ -780,7 +833,7 @@ lemma saturate_ext_domain_ext (x : EReal) (rnd : RoundingMode) (sat : Saturation
   simp [heq] at *
 
   rw [finite_to_ereal_eq _ max_is_finite, finite_to_ereal_eq _ min_is_finite] at *
-  have := @domain_sat_consistent f sat
+  have := domain_sat_consistent sat
   split
   split <;> simp
   simp at this
@@ -847,7 +900,9 @@ lemma saturate_bot_signed (x : EReal) (rnd : RoundingMode) (sat : SaturationMode
 
 -- need this proof because encode demands the EReal is in the value set of P3109
 -- remember value_set returns EReal ⊕ Unit
-noncomputable def in_value_set (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
+noncomputable def in_value_set
+  (domain_sat_consistent : ∀ (sat : SaturationMode), f.d = .finite → ¬sat = .SatFinite → False)
+  (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
   let R := @round_to_precision f x rnd;
   let S := @saturate f R sat rnd;
   Sum.inl S ∈ value_set f := by
@@ -859,7 +914,7 @@ noncomputable def in_value_set (x : EReal) (rnd : RoundingMode) (sat : Saturatio
       have : f.d = .extended ∧ f.s=.signed := by
         constructor
         symm at hs
-        apply saturate_ext_domain_ext
+        apply saturate_ext_domain_ext domain_sat_consistent
         left; exact hs
         symm at hs
         apply saturate_bot_signed _ _ _ hs
@@ -867,7 +922,7 @@ noncomputable def in_value_set (x : EReal) (rnd : RoundingMode) (sat : Saturatio
     |⊤ =>
       have : f.d = .extended := by
         symm at hs
-        apply saturate_ext_domain_ext
+        apply saturate_ext_domain_ext domain_sat_consistent
         right; exact hs
       exists (.p3109_infinity this false (by simp))
     | (r : ℝ) =>

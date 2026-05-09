@@ -3,7 +3,11 @@
 -- correctness guarantee
 import Flops.P3109.Bijection
 import Flops.P3109.RoundTrip
--- arithmetic properties
+-- Rounding properties
+import Flops.P3109.RtoProperty
+import Flops.P3109.StochasticProperties
+import Flops.P3109.RoundingProjection
+-- Arithmetic properties
 import Flops.P3109.Sterbenz
 import Flops.P3109.Fast2Sum
 import Flops.P3109.Fast2SumSat

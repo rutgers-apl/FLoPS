@@ -1,6 +1,6 @@
 import Flops.P3109.Projection
 import Flops.P3109.Fast2SumAux
-import Flops.Scalar
+import Flops.AccSum.Scalar
 import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 namespace p3109_format
@@ -8,13 +8,17 @@ instance : Coe p3109_format Format where
   coe := p3109_format.to_format
 
 namespace p3109
-noncomputable def ExtractScalar {f : p3109_format} (σ p : p3109 f) : p3109 f × p3109 f :=
-  let sum_σ_p := @project f (σ + p) .RNE .SatFinite
-  let q := @project f (sum_σ_p- σ) .RNE .SatFinite
-  let p' := @project f (p-q) .RNE .SatFinite
+noncomputable def ExtractScalar {f : p3109_format}
+  (domain_sat_consistent : ∀ (sat : SaturationMode), f.d = .finite → ¬sat = .SatFinite → False)
+  (σ p : p3109 f) : p3109 f × p3109 f :=
+  let sum_σ_p := @project f domain_sat_consistent (σ + p) .RNE .SatFinite
+  let q := @project f domain_sat_consistent (sum_σ_p- σ) .RNE .SatFinite
+  let p' := @project f domain_sat_consistent (p-q) .RNE .SatFinite
   (q, p')
 
-theorem ExtractScalar_properties {f : p3109_format} (σ p : p3109 f) (M : ℤ) :
+theorem ExtractScalar_properties {f : p3109_format}
+  (domain_sat_consistent : ∀ (sat : SaturationMode), f.d = .finite → ¬sat = .SatFinite → False)
+  (σ p : p3109 f) (M : ℤ) :
   1 < f.P →
   f.s = .signed →
   σ.is_finite →
@@ -23,7 +27,7 @@ theorem ExtractScalar_properties {f : p3109_format} (σ p : p3109 f) (M : ℤ) :
   0 ≤ M →
   (∃ k : ℤ, (σ:ℝ) = 2^k) →
   (|(p:ℝ)| ≤ (2^(-M)) * σ) →
-  let (q, p') := ExtractScalar (f := f) σ p
+  let (q, p') := ExtractScalar domain_sat_consistent (f := f) σ p
   -- 1. Error-free transformation
   p =  (q + p' : ℝ) ∧
   -- 2. Bounds on q
@@ -32,7 +36,7 @@ theorem ExtractScalar_properties {f : p3109_format} (σ p : p3109 f) (M : ℤ) :
   (∃ k : ℤ, q = (k:ℝ) * eps f * σ) ∧
   -- 4. Bounds on p'
   |(p':ℝ)| ≤ eps f * σ := by
-  set scalar := ExtractScalar (f := f) σ p with hscalar
+  set scalar := ExtractScalar domain_sat_consistent (f := f) σ p with hscalar
   let (q, p') := scalar
   simp
   simp [ExtractScalar] at hscalar
@@ -60,7 +64,7 @@ theorem ExtractScalar_properties {f : p3109_format} (σ p : p3109 f) (M : ℤ) :
       simp [to_float]; (expose_names; exact canonical_fp_of_canonical_p3109 { fnum := m, exp := e } h) )
     x hsigmaeq hple
 
-  have := @project_in_bound_eq_round f (σ+p) .RNE .SatFinite
+  have := @project_in_bound_eq_round f domain_sat_consistent (σ+p) .RNE .SatFinite
     (by
     clear hext
     rw [finite_to_ereal_eq _ (@max_is_finite f)]
@@ -103,7 +107,7 @@ theorem ExtractScalar_properties {f : p3109_format} (σ p : p3109 f) (M : ℤ) :
   rw [to_float_eq] at hz_noovf
   rw [to_float_eq] at hz_noovf
   simp [round_to_fp] at hz_noovf
-  have := @project_real_in_bound_eq_round f (@rne_abs f (σ+p)-σ) .RNE .SatFinite
+  have := @project_real_in_bound_eq_round f domain_sat_consistent (@rne_abs f (σ+p)-σ) .RNE .SatFinite
     (by
     rw [min_0_or_neg_max hsigned, <-abs_le]
     exact hz_noovf)
@@ -142,7 +146,7 @@ theorem ExtractScalar_properties {f : p3109_format} (σ p : p3109 f) (M : ℤ) :
   simp [rne_abs] at hqr
   rw [hz_exact] at hqr
   rewrite (occs := .pos [1, 2, 3, 4]) [hz_exact] at hext
-  have := @project_in_bound_eq_round f (@rne_abs f (σ+p)-σ) .RNE .SatFinite
+  have := @project_in_bound_eq_round f domain_sat_consistent (@rne_abs f (σ+p)-σ) .RNE .SatFinite
     (by
     rw [finite_to_ereal_eq _ (@max_is_finite f)]
     rw [finite_to_ereal_eq _ (@min_is_finite f)]
@@ -162,7 +166,7 @@ theorem ExtractScalar_properties {f : p3109_format} (σ p : p3109 f) (M : ℤ) :
   clear this
   set sum := (@round_fp f (round_choice_abs (@to_even' f)) (σ+p)) with hsum
   norm_cast at hp'r
-  have := @project_real_in_bound_eq_round f (p - @round_fp f (round_choice_abs (@to_even' f)) (sum-σ))
+  have := @project_real_in_bound_eq_round f domain_sat_consistent (p - @round_fp f (round_choice_abs (@to_even' f)) (sum-σ))
     .RNE .SatFinite
     (by
       rw [hz_exact, min_0_or_neg_max hsigned]

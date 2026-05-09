@@ -1,10 +1,10 @@
-import Flops.AccSum
-import Flops.Order
+import Flops.AccSum.Aux
+import Flops.Core.Order
 import Mathlib.Analysis.SpecialFunctions.Log.Base
 
 noncomputable def ExtractScalar {f : Format} (σ p : float 2) : float 2 × float 2 :=
-  let sum_σ_p := rne_abs (format := f) (σ + p)
-  let q := @rne_abs f (sum_σ_p- σ)
+  let s := rne_abs (format := f) (σ + p)
+  let q := @rne_abs f (s-σ)
   let p' := @rne_abs f (p-q)
   (q, p')
 
@@ -84,7 +84,7 @@ lemma h_round_sigma {f : Format} {σ : float 2} {M : ℤ} :
     rw [<-lt_div_iff₀ (by simp [hsigma]; apply zpow_pos; simp), div_self (by apply ne_of_gt; simp [hsigma]; apply zpow_pos; simp)]
     rw [<-zpow_zero 2, <-zpow_neg, zpow_lt_zpow_iff_right₀ (by simp)]
     simp; apply lt_of_le_of_lt _ hlt
-    have hp := @precpos f; omega
+    have hp := f.precpos; omega
 
   have hbcan_exp : @fexp_real' f B = σ.exp := by
     simp [fexp_real']
@@ -116,7 +116,7 @@ lemma h_round_sigma {f : Format} {σ : float 2} {M : ℤ} :
     simp [hmantissa, hfloor]
     norm_cast at hmsigma
     simp [hmsigma]
-    have hp := @precpos f
+    have hp := f.precpos
     have hp2 : 2 ≤ f.precision:=by omega
     rw [<-Nat.sub_add_cancel (n := f.precision-1) (m:=1) (by omega)]
     rw [pow_add]; simp
@@ -170,7 +170,7 @@ lemma h_round_sigma_neg {f : Format} {σ : float 2} {M : ℤ} :
     rw [<-zpow_add₀ (by simp)]
     rw [<-zpow_add₀ (by simp)]
     simp
-    have hp := @precpos f
+    have hp := f.precpos
     omega
 
   have hbpos : 0<B := by
@@ -178,7 +178,7 @@ lemma h_round_sigma_neg {f : Format} {σ : float 2} {M : ℤ} :
     rw [<-lt_div_iff₀ (by simp [hsigma]; apply zpow_pos; simp), div_self (by apply ne_of_gt; simp [hsigma]; apply zpow_pos; simp)]
     rw [<-zpow_zero 2, <-zpow_neg, zpow_lt_zpow_iff_right₀ (by simp)]
     simp; apply lt_of_le_of_lt _ hlt
-    have hp := @precpos f; omega
+    have hp := f.precpos; omega
 
   have hbscaled_pos : 0 < @scaled_mantissa f B := by
     simp [scaled_mantissa]
@@ -227,7 +227,7 @@ lemma h_round_sigma_neg {f : Format} {σ : float 2} {M : ℤ} :
     rw [hmsigma]; rewrite (occs := .pos [1]) [<-zpow_one 2]
     rw [<-zpow_natCast, <-zpow_add₀ (by simp)]
     have : (1 + (f.precision - 1:ℕ):ℤ) = f.precision := by
-      have _ := @precpos f
+      have _ := f.precpos
       omega
     rw [this]; simp
     suffices ⌈(2^(f.precision-M):ℝ)⌉=(1:ℝ) by linarith
@@ -248,7 +248,7 @@ lemma h_round_sigma_neg {f : Format} {σ : float 2} {M : ℤ} :
     -- p>1
     rw [hfloor, if_pos (by
       apply Even.sub_odd _ (by simp)
-      have := @precpos f
+      have := f.precpos
       rw [<-Nat.sub_add_cancel (n := f.precision) (m := 1) (by omega)]
       simp [pow_add])]
     simp [vnum]
@@ -274,7 +274,7 @@ lemma h_round_sigma_neg {f : Format} {σ : float 2} {M : ℤ} :
   simp
   norm_cast at hmsigma ⊢
   rw [<-hmsigma]
-  apply precpos
+  exact f.precpos
 
 
 theorem ExtractScalar_properties {f : Format} (σ p : float 2) (M : ℤ) :
@@ -350,7 +350,7 @@ theorem ExtractScalar_properties {f : Format} (σ p : float 2) (M : ℤ) :
       rw [<-Int.lt_zpow_iff_log_lt (by simp) (by simp; apply ne_of_gt; expose_names; rw [abs_lt] at h; linarith)]
       rw [zpow_add₀ (by simp)]; simp [mul_two, <-hsigmaeq]
       calc |(σ+p:ℝ)|
-        _ ≤ |(σ:ℝ)|+|(p:ℝ)| := by apply abs_add
+        _ ≤ |(σ:ℝ)|+|(p:ℝ)| := by apply abs_add_le
         _ = σ + |(p:ℝ)| := by
           rw [abs_of_pos (by simp [hsigmaeq]; apply zpow_pos; simp)]
         _ < _ := by simp; assumption
@@ -409,7 +409,7 @@ theorem ExtractScalar_properties {f : Format} (σ p : float 2) (M : ℤ) :
   have hmsigma_le : σ.fnum ≤ 2^(f.precision-1:ℕ) := by
     rcases hsigma with ⟨⟨hlt, _⟩, hle⟩|⟨_, _, hlt⟩
     simp [vnum] at hle hlt
-    rw [normal_iff] at hle
+    rw [float_normal_iff'] at hle
     rw [abs_of_pos hmsigma_pos] at hle hlt
     rify at hle hlt
     rw [hmsigma] at hle hlt
@@ -419,7 +419,7 @@ theorem ExtractScalar_properties {f : Format} (σ p : float 2) (M : ℤ) :
     rify
     rw [hmsigma, this]; simp
     simp [vnum] at hlt
-    rw [subnormal_iff] at hlt
+    rw [subnormal_iff'] at hlt
     rw [abs_of_pos hmsigma_pos] at hlt
     apply le_of_lt
     apply lt_of_lt_of_le hlt; simp
@@ -430,7 +430,7 @@ theorem ExtractScalar_properties {f : Format} (σ p : float 2) (M : ℤ) :
   rcases lt_or_eq_of_le hemin_le with helt|heeq
   have hmsigmaeq' : σ.fnum = 2^(f.precision-1) := by
     rcases hsigma with ⟨_, hle⟩|⟨_, heq, _⟩
-    simp [vnum, normal_iff] at hle;
+    simp [vnum, float_normal_iff'] at hle;
     rw [abs_of_pos hmsigma_pos] at hle
     omega
     simp [heq] at helt
@@ -438,7 +438,7 @@ theorem ExtractScalar_properties {f : Format} (σ p : float 2) (M : ℤ) :
     rw [zpow_add₀ (by simp)]; simp [to_real]; simp [hmsigmaeq']
     left; rw [<-zpow_natCast]
     rw [zpow_right_inj₀ (by simp) (by simp)]
-    have hp := @precpos f; omega
+    have hp := f.precpos; omega
 
   rcases p.fnum.decLt 0
   -- need to compute the magnitude of σ's significand field
@@ -454,7 +454,7 @@ theorem ExtractScalar_properties {f : Format} (σ p : float 2) (M : ℤ) :
     apply can_le_round_monotone hsigma
     simp [to_real]; apply mul_nonneg; simp; omega
     apply zpow_nonneg; simp
-    rw [h_round_sigma (M:=M) hsigma (by exact hsigmaeq') (by norm_cast at ⊢ hmsigmaeq') (by exact hlt) (by exact helt) hp1]
+    rw [h_round_sigma (M:=M) hsigma (by exact hsigmaeq') (by norm_cast at ⊢ hmsigmaeq') (by omega) (by exact helt) hp1]
     rw [hs]
     apply round_monotone; simp
     rw [abs_le] at hsigma_bound
@@ -553,7 +553,7 @@ theorem ExtractScalar_properties {f : Format} (σ p : float 2) (M : ℤ) :
       (by
         simp [hmsigmaeq'] at hmsigma
         rw [<-zpow_natCast, zpow_right_inj₀ (by simp) (by simp)] at hmsigma
-        have hp := @precpos f; omega)
+        have hp := f.precpos; omega)
       (by omega)
     simp at this
     rw [this, hs]
@@ -600,12 +600,11 @@ theorem ExtractScalar_properties {f : Format} (σ p : float 2) (M : ℤ) :
     rw [<-lt_div_iff₀ (by simp; apply ne_of_gt; simp; rewrite (occs := .pos [4] ) [<-zpow_one 2]; rw [zpow_lt_zpow_iff_right₀ (by simp)]; omega)]
     rw [<-hmsigma]
     apply lt_of_le_of_lt (b := 2^(f.precision-1))
-    norm_cast at ⊢ hmsigma_le; rw [abs_of_pos hmsigma_pos]
-    exact hmsigma_le
+    norm_cast at ⊢ hmsigma_le
     rw [lt_div_iff₀ (by simp; apply ne_of_gt; simp; rewrite (occs := .pos [4] ) [<-zpow_one 2]; rw [zpow_lt_zpow_iff_right₀ (by simp)]; omega)]
     rw [<-lt_div_iff₀' (by simp)]
     rw [<-zpow_natCast, <-zpow_natCast, <-zpow_sub₀ (by simp)]
-    have hp := @precpos f
+    have hp := f.precpos
     have : (↑f.precision - ↑(f.precision - 1:ℕ):ℤ) = 1:= by omega
     simp [this]
     rw [abs_of_pos (by simp; rewrite (occs := .pos [4] ) [<-zpow_one 2]; rw [zpow_lt_zpow_iff_right₀ (by simp)]; omega)]
@@ -645,7 +644,7 @@ theorem ExtractScalar_properties {f : Format} (σ p : float 2) (M : ℤ) :
   rw [hs]
   apply underflow_exact hsigma hp
   calc |(σ+p:ℝ)|
-    _ ≤ |(σ:ℝ)|+|(p:ℝ)| := by apply abs_add
+    _ ≤ |(σ:ℝ)|+|(p:ℝ)| := by apply abs_add_le
     _ ≤ σ + (2^M)⁻¹*σ := by
       rw [abs_of_pos (by simp [hsigmaeq]; apply zpow_pos; simp)]
       simp; exact hsigma_bound
@@ -661,5 +660,5 @@ theorem ExtractScalar_properties {f : Format} (σ p : float 2) (M : ℤ) :
       rw [mul_assoc, mul_comm _ (2^f.dexp:ℝ), <-div_eq_mul_inv, div_self (by apply ne_of_gt; apply zpow_pos; simp)]
       simp; rw [<-le_div_iff₀' (by simp)]
       rewrite (occs := .pos [3]) [<-pow_one 2]
-      rw [div_eq_mul_inv, <-pow_sub₀ _ (by simp) (by have hp := @precpos f; omega)]
+      rw [div_eq_mul_inv, <-pow_sub₀ _ (by simp) (by have hp := f.precpos; omega)]
       norm_cast at ⊢ hmsigma_le

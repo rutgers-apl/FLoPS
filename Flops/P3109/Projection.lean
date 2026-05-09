@@ -1,6 +1,8 @@
 import Flops.P3109.Rounding
 
 variable {f : p3109_format}
+variable (domain_sat_consistent : ∀ (sat : SaturationMode), f.d = .finite → ¬sat = .SatFinite → False)
+include domain_sat_consistent
 
 set_option maxHeartbeats 500000
 
@@ -10,13 +12,72 @@ namespace p3109
 noncomputable def project (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :=
   let R := @round_to_precision f x rnd;
   let S := @saturate f R sat rnd;
-  let e := @encode f (Sum.inl S) (@in_value_set f x rnd sat);
+  let e := @encode f (Sum.inl S) (@in_value_set f domain_sat_consistent x rnd sat);
   e
 
--- no saturation happending if x is in bounds
+omit domain_sat_consistent in
+lemma encode_to_ereal_local (v : EReal) (h : Sum.inl v ∈ value_set f) :
+    (@encode f (Sum.inl v) h : EReal) = v := by
+  cases v;
+  · exact?;
+  · by_cases ha : ‹ℝ› = 0;
+    · subst ha;
+      unfold encode;
+      simp +decide [ to_ereal ];
+    · exact?;
+  · exact?
+
+/-
+no saturation happending if x is in bounds
+-/
 lemma project_in_bound_eq_round (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
   (@min_finite f ≤ x ∧ x ≤ @max_finite f) →
-  @project f x rnd sat = @round_to_precision f x rnd := by
+  @project f domain_sat_consistent x rnd sat = @round_to_precision f x rnd := by
+  intro hx
+  unfold project;
+  -- Since x is in bounds, the saturate function returns the rounded value.
+  have h_saturate : @saturate f (@round_to_precision f x rnd) sat rnd = @round_to_precision f x rnd := by
+    apply (saturate_eq _ _ _).left;
+    · by_cases h : x = ⊥ <;> by_cases h' : x = ⊤ <;> simp_all +decide [ round_to_precision_eq_simp ];
+      · exact?;
+      · cases x ; simp_all +decide [ round_to_precision_eq_simp ];
+        · have := @weakly_monotone_le_round_to_fp f rnd;
+          contrapose! this;
+          use @min_finite f |> to_float, ↑‹ℝ›;
+          exact ⟨ min_fp_bounded, by
+            convert hx.1 using 1;
+            rw [ ← EReal.coe_le_coe_iff ] ; norm_num [ _root_.to_real ];
+            convert Iff.rfl using 2;
+            convert finite_to_ereal_eq _ _;
+            · unfold p3109.to_real;
+              cases min_finite <;> norm_num [ _root_.to_real ];
+              · exact Or.inl rfl;
+              · exact Or.inl rfl;
+              · rfl;
+            · exact?, by
+            convert this using 1;
+            rw [ round_to_precision_eq_simp ];
+            rw [ round_to_precision_eq ];
+            grind +suggestions ⟩;
+        · contradiction;
+    · by_cases h : ∃ r : ℝ, x = r;
+      · obtain ⟨ r, rfl ⟩ := h; simp +decide [ round_to_precision_eq_simp, round_to_precision_eq ] at hx ⊢;
+        have h_round_le_max : ∀ (x : ℝ), x ≤ @max_finite f → (@round_to_fp f rnd x : ℝ) ≤ @max_finite f := by
+          have := @max_fp_eq_max f;
+          have := @max_fp_bounded f;
+          grind +suggestions;
+        convert h_round_le_max r _;
+        · rw [ ← round_to_fp_eq ];
+          norm_num [ ← EReal.coe_le_coe_iff ];
+          rw [ ← finite_to_ereal_eq ];
+          exact?;
+        · convert hx.2 using 1;
+          simp +decide [ ← EReal.coe_le_coe_iff, max_finite ];
+          split_ifs <;> rfl;
+      · cases x <;> simp_all +decide [ round_to_precision ];
+  by_cases h : @round_to_precision f x rnd = 0 <;> simp_all +decide [ encode_to_ereal_local ]
+
+/- Old proof commented out during encode refactoring
   rw [finite_to_ereal_eq _ min_is_finite, finite_to_ereal_eq _ max_is_finite]
   cases x <;> simp
   intro hbound1 hbound2
@@ -28,8 +89,7 @@ lemma project_in_bound_eq_round (x : EReal) (rnd : RoundingMode) (sat : Saturati
   suffices @min_finite f ≤ round ∧ round ≤ @max_finite f by
     unfold saturate
     split
-    simp [encode, encode_aux]
-    unfold encode_ret.a
+    simp [encode]
 
     split
     exfalso
@@ -53,55 +113,14 @@ lemma project_in_bound_eq_round (x : EReal) (rnd : RoundingMode) (sat : Saturati
     split
     expose_names
     simp [to_ereal, h_3]
-    simp at heq_1
+    norm_cast
+    simp [h_4]
 
     simp [to_ereal]
-    clear h h_1 x heq_1
-    have man := @encode_m f (Sum.inl x_1) h_2 ?_ ?_
-    simp_rw [<-lift_some_some_ereal] at man
-
-    simp [encode_aux] at man
-    unfold encode_ret.a at man
-
-    split at man
-    exfalso; expose_names; clear * - heq_1
-    simp [lift_none_bot] at heq_1
-    exfalso; expose_names; clear * - heq_1
-    rw [lift_some_none_top] at heq_1; simp at *
-    exfalso; expose_names; clear * - heq_1
-    simp at *
-    expose_names
-    rw [dif_neg] at man
-    simp [fnum] at man
-    simp at heq_1
-    rw [lift_some_some_ereal] at heq_1
-    norm_cast at heq_1
-    simp [<-heq_1, <-heq] at man
+    have man := @encode_fnum_eq f round h_1 (by assumption)
     rw [man]; norm_cast
     rw [mul_assoc, <-zpow_add₀ (by simp)]
-    have : (Int.negSucc 0 + (f.P - max (Int.log 2 |round|) (1 - f.bias)) + (max (Int.log 2 |round|) (1 - f.bias) - ↑f.P + 1)) = 0 := by
-      have : Int.negSucc 0 = -1 := by norm_cast
-      rw [this]; linarith
-
-    rw [this]; simp
-    simp at heq_1
-    rw [lift_some_some_ereal] at heq_1
-    simp at heq_1
-    simp [<-heq_1, <-heq]; exact h
-    -- conditions for encode_m
-    simp [encode_aux]
-    unfold encode_ret.a
-    split
-    exfalso; expose_names; clear * - heq_1
-    simp [lift_none_bot] at heq_1
-    exfalso; expose_names; clear * - heq_1
-    rw [lift_some_none_top] at heq_1; simp at *
-    exfalso; expose_names; clear * - heq_1
-    simp at *
-    expose_names
-    split <;> simp [is_finite]
-    simp [<-heq]
-    assumption
+    simp [neg_add_cancel]
 
     exfalso
     expose_names
@@ -153,17 +172,17 @@ lemma project_in_bound_eq_round (x : EReal) (rnd : RoundingMode) (sat : Saturati
   apply weakly_le_round_monotone (by apply min_fp_bounded) hbound1
   apply weakly_round_le_monotone (by apply max_fp_bounded) hbound2
   apply weakly_le_round_monotone (by apply min_fp_bounded) hbound1
-  apply weakly_round_le_monotone (by apply max_fp_bounded) hbound2
+  apply weakly_round_le_monotone (by apply max_fp_bounded) hbound2 -/
 
 lemma project_real_in_bound_eq_round (x : ℝ) (rnd : RoundingMode) (sat : SaturationMode) :
   (@min_finite f ≤ x ∧ x ≤ @max_finite f) →
-  @project f x rnd sat = @round_to_precision_generic f x rnd := by
+  @project f domain_sat_consistent x rnd sat = @round_to_precision_generic f x rnd := by
   intro hb
-  have := @project_in_bound_eq_round f x rnd sat (by
+  have := @project_in_bound_eq_round f domain_sat_consistent x rnd sat (by
     rw [finite_to_ereal_eq _ min_is_finite, finite_to_ereal_eq _ max_is_finite]
     simp; exact hb)
   rw [round_to_precision_eq_simp] at this
-  set p := (@project f (↑x) rnd sat) with hp
+  set p := (@project f domain_sat_consistent (↑x) rnd sat) with hp
   rcases p with ⟨_, sign, _⟩|_|_
   cases sign
   simp [to_ereal] at this
@@ -178,6 +197,7 @@ lemma project_real_in_bound_eq_round (x : ℝ) (rnd : RoundingMode) (sat : Satur
   norm_cast at this
 
 -- helper
+omit domain_sat_consistent in
 lemma x_in_bound_round_in_bound {x : ℝ} :
   @min_finite f ≤ x ∧ x ≤ @max_finite f →
   @min_finite f ≤ (@round_to_fp f rnd x : ℝ)∧ (@round_to_fp f rnd x : ℝ) ≤ @max_finite f := by
@@ -191,8 +211,108 @@ lemma x_in_bound_round_in_bound {x : ℝ} :
   rw [max_fp_eq_max] at hle2'
   exact ⟨hle1', hle2'⟩
 
+omit domain_sat_consistent in
+lemma encode_aux_is_finite {x : ℝ} :
+  (h : Sum.inl (x:EReal) ∈ value_set f) →
+  (@encode f (Sum.inl x) h).is_finite := by
+  intro h; (
+  by_contra h_contra;
+  have h_contra' : ¬(encode (Sum.inl (x : EReal)) h).is_finite → ¬(x : EReal) = 0 → False := by
+    intros h_contra' h_nonzero
+    have h_eq : (encode (Sum.inl (x : EReal)) h : EReal) = (x : EReal) := by
+      exact?;
+    cases h : encode ( Sum.inl ( x : EReal ) ) h <;> simp_all +decide [ p3109.to_ereal ];
+    · cases ‹Bool› <;> simp_all +decide [ p3109.to_ereal ];
+    · exact h_nonzero ( by simpa using congr_arg EReal.toReal h_eq.symm );
+    · exact h_contra trivial;
+  simp_all +decide [ p3109.is_finite ];
+  exact h_contra ( by unfold encode; simp +decide ))
+
+omit domain_sat_consistent in
+lemma finite_encode_self {x : p3109 f} :
+  x.is_finite →
+  (h : Sum.inl (x:EReal) ∈ value_set f) →
+  @encode f (Sum.inl x) h = x := by
+  rcases heq:x <;> simp [is_finite]
+  simp [value_set]
+  intro x h
+  expose_names
+  simp [to_ereal]
+  norm_cast
+  simp_rw [<-lift_some_some_ereal]
+  simp [encode, to_format]
+  split
+  simp
+  expose_names
+  rcases h_2 with hm0|hne
+  simp [hm0] at h_1 ⊢
+  rcases h_1 with ⟨_, hle, _⟩|⟨_, heq, _⟩
+  exfalso
+  simp [vnum, to_format] at hle; revert hle; simp
+  simp [to_format] at heq
+  simp [heq]
+  exfalso; revert hne; simp
+  apply ne_of_gt; apply zpow_pos; simp
+  -- nonzero
+  simp
+  have := @encode_m f (Sum.inl (some (some (m*2^e))))
+    (by
+      simp [value_set]
+      exists .p3109_finite m e hm h_1)
+    (by
+      simp [encode]
+      rw [dif_neg (by assumption)]
+      simp [is_finite])
+    (by rw [lift_some_some_ereal]; simp; expose_names; simp at h_2; exact h_2)
+  simp [encode] at this
+  rw [dif_neg (by assumption)] at this
+  simp [fnum] at this
+  rify at ⊢ this
+  rw [this] ;
+  have := canonical_fp_of_canonical_p3109 _ h_1
+  rw [<-flt_equivalent' _ _ (by expose_names; simp  at h_2; exact h_2.1) rfl] at this
+  rw [fexp, digits_abs', to_format] at this
+  simp [emin_lsb, emin] at this
+
+  rewrite (occs := .pos [2]) [abs_of_pos (by apply zpow_pos; simp)]
+  rewrite (occs := .pos [3]) [abs_of_pos (by apply zpow_pos; simp)]
+  rw [log_mul _ (by simp; expose_names; simp at h_2; exact h_2.1)]
+  norm_cast at ⊢ this
+  have : max (Int.log 2 (↑|m|:ℝ) + e) (1 - f.bias) - ↑f.P + 1 = e := by omega
+  rw [this]; simp
+  simp at this
+  have : (-1 + (↑f.P - max (Int.log 2 |(m:ℝ)| + e) (1 - f.bias))) = -e := by omega
+  rw [this, mul_assoc, <-zpow_add₀ (by simp)]
+  simp
+omit domain_sat_consistent in
+lemma encode_eq_to_p3109 (v : float 2)
+    (hcan : @canonical 2 f.to_format v)
+    (hle : @min_finite f ≤ (v : ℝ) ∧ (v : ℝ) ≤ @max_finite f)
+    (hvs : Sum.inl ((v : ℝ) : EReal) ∈ value_set f) :
+    @encode f (Sum.inl ((v : ℝ) : EReal)) hvs = @to_p3109 f v hcan hle := by
+  exact @finite_encode_self f (to_p3109 v hcan hle) (by simp [to_p3109, is_finite]) hvs
+
 lemma project_in_bound_eq_round' (x : ℝ) (rnd : RoundingMode) (sat : SaturationMode) (h : @min_finite f ≤ x ∧ x ≤ @max_finite f) :
-  @project f x rnd sat = @to_p3109 f (@round_to_fp f rnd x) (by apply round_to_fp_canonical) (x_in_bound_round_in_bound h) := by
+  @project f domain_sat_consistent x rnd sat = @to_p3109 f (@round_to_fp f rnd x) (by apply round_to_fp_canonical) (x_in_bound_round_in_bound h) := by
+  convert @encode_eq_to_p3109 f _ _ _ _ using 1;
+  unfold project;
+  -- Since $x$ is in the bounds, the saturate function returns $x$ itself.
+  have h_saturate : @saturate f (@round_to_precision f x rnd) sat rnd = @round_to_precision f x rnd := by
+    apply (saturate_eq _ _ _).left;
+    · rw [ round_to_precision_eq_simp, round_to_precision_eq, round_to_fp_eq ];
+      grind +suggestions;
+    · convert x_in_bound_round_in_bound h |>.2 using 1;
+      rw [ round_to_precision_eq_simp, round_to_precision_eq, round_to_fp_eq ];
+      rw [ ← EReal.coe_le_coe_iff ];
+      congr! 1;
+      convert finite_to_ereal_eq _ _;
+      exact?;
+  congr! 1;
+  · rw [ h_saturate, round_to_precision_eq_simp, round_to_precision_eq, round_to_fp_eq ];
+  · use @to_p3109 f (round_to_fp rnd x) (round_to_fp_canonical rnd x) (x_in_bound_round_in_bound h);
+    exact?
+
+/- encode refactoring: use encode_fnum_eq and finite_encode_self
   have ⟨hbound1, hbound2⟩ := h
 
   simp [project]
@@ -203,8 +323,7 @@ lemma project_in_bound_eq_round' (x : ℝ) (rnd : RoundingMode) (sat : Saturatio
   suffices @min_finite f ≤ (round:ℝ) ∧ (round:ℝ) ≤ @max_finite f by
     unfold saturate
     split
-    simp [encode, encode_aux]
-    unfold encode_ret.a
+    simp [encode]
 
     split
     exfalso
@@ -230,8 +349,8 @@ lemma project_in_bound_eq_round' (x : ℝ) (rnd : RoundingMode) (sat : Saturatio
     expose_names
     simp [to_p3109]
     simp [to_format]
-    simp [_root_.to_real] at h_4
-    rcases h_4 with heq|hne
+    simp [_root_.to_real] at h_5
+    rcases h_5 with heq|hne
     simp [heq]
     rcases round_can with ⟨_, hle⟩|⟨_, hemin, _⟩
     simp [heq, vnum, to_format] at hle
@@ -242,44 +361,15 @@ lemma project_in_bound_eq_round' (x : ℝ) (rnd : RoundingMode) (sat : Saturatio
     revert hne; simp
     apply ne_of_gt; apply zpow_pos; simp
 
-
-    simp at heq_1
-
-
-    have man := @encode_m f (Sum.inl x_2) h_3 ?_ ?_
-    simp_rw [<-lift_some_some_ereal] at man
-
-    simp [encode_aux] at man
-    unfold encode_ret.a at man
-
-    split at man
-    exfalso; expose_names; clear * - heq_2
-    simp [lift_none_bot] at heq_2
-    exfalso; expose_names; clear * - heq_2
-    rw [lift_some_none_top] at heq_2; simp at *
-    exfalso; expose_names; clear * - heq_2
-    simp at *
-    expose_names
-    rw [dif_neg] at man
-    simp [fnum] at man
-    simp at heq_2
-    rw [lift_some_some_ereal] at heq_2
-    norm_cast at heq_2
-    simp [<-heq_2, <-heq] at man
+    have man := @encode_fnum_eq f (_root_.to_real round) h_2 (by assumption)
     simp [to_p3109]
-    norm_cast at man
-    rify at man
     rify
-    rw [man]; simp
+    rw [man]
     rw (occs := .pos [1]) [_root_.to_real]
-    -- I think lean is being really weird: when I comment out the next line
-    -- (rw flt...) it suddenly says it's unable to synthesize placeholders.
-
-    -- somehow fixed with simp_rw instead of rw
-    simp_rw [<-@flt_equivalent' 2 f.to_format round.fnum round.exp
+    rw [<-@flt_equivalent' 2 f.to_format round.fnum round.exp
     (by
-      simp [_root_.to_real] at h_4
-      exact h_4.1) (by simp)] at round_can
+      simp [_root_.to_real] at this
+      exact this.1.1) (by simp)] at round_can
     simp [<-hround, fexp, digits_abs', to_format] at round_can
     suffices round.exp = max (↑(Int.log 2 |_root_.to_real round|)) (1 - ↑f.bias) - ↑f.P + 1 by
       clear * - this
@@ -288,24 +378,12 @@ lemma project_in_bound_eq_round' (x : ℝ) (rnd : RoundingMode) (sat : Saturatio
       have : (max (Int.log 2 |_root_.to_real round|) (1 - f.bias) - ↑f.P + 1 +
         (-1 + (↑f.P - max (Int.log 2 |_root_.to_real round|) (1 - f.bias)))) = 0 := by linarith
       rw [this]; simp; simp
-    have := @fexp_real_eq f.to_format round round.fnum round.exp (by simp [_root_.to_real] at h_4; simp; exact h_4.1) (by simp [_root_.to_real])
+    have := @fexp_real_eq f.to_format round round.fnum round.exp (by simp [_root_.to_real] at this; simp; exact this.1.1) (by simp [_root_.to_real])
     simp [fexp_real, fexp_real', to_format, digits_real] at this
     rw [<-round_can, this]
     simp [emin_lsb, emin]
     clear * -
     omega
-    simp at heq_2; rw [lift_some_some_ereal] at heq_2
-    simp at heq_2; simp [<-heq_2, <-heq]; exact h_4
-
-    -- conditions for encode_m
-    simp [encode_aux]
-    unfold encode_ret.a
-    split
-    exfalso; expose_names; clear * - heq_2
-    simp [lift_none_bot] at heq_2
-    exfalso; expose_names; clear * - heq_2
-    rw [lift_some_none_top] at heq_2; simp at *
-    exfalso; expose_names; clear * - heq_2
     simp at *
     expose_names
     split <;> simp [is_finite]
@@ -361,9 +439,10 @@ lemma project_in_bound_eq_round' (x : ℝ) (rnd : RoundingMode) (sat : Saturatio
   apply weakly_le_round_monotone (by apply min_fp_bounded) hbound1
   apply weakly_round_le_monotone (by apply max_fp_bounded) hbound2
   apply weakly_le_round_monotone (by apply min_fp_bounded) hbound1
-  apply weakly_round_le_monotone (by apply max_fp_bounded) hbound2
+  apply weakly_round_le_monotone (by apply max_fp_bounded) hbound2 -/
 
 -- rounding is faithful, not particularly useful bc the function we care about is projection
+omit domain_sat_consistent in
 lemma round_faithful (x : EReal) (rnd : RoundingMode) :
   let r := @round_to_precision f x rnd;
   r = @round_to_precision f x .RD ∨ r = @round_to_precision f x .RU := by
@@ -388,13 +467,13 @@ we need prove that x after saturates, will either be max or ⊤
 which falls into projecting x using either RD or RU
 -/
 lemma project_faithful (x : ℝ) (rnd : RoundingMode) (sat : SaturationMode) :
-  let p := @project f x rnd sat;
-  p = project x RoundingMode.RD sat ∨ p = project x RoundingMode.RU sat := by
+  let p := @project f domain_sat_consistent x rnd sat;
+  p = project domain_sat_consistent x RoundingMode.RD sat ∨ p = project domain_sat_consistent x RoundingMode.RU sat := by
   simp
   if hbound : @min_finite f ≤ x ∧ x ≤ @max_finite f then
-  rw [project_in_bound_eq_round' _ _ _ hbound]
-  rw [project_in_bound_eq_round' _ _ _ hbound]
-  rw [project_in_bound_eq_round' _ _ _ hbound]
+  rw [project_in_bound_eq_round' _ _ _ _ hbound]
+  rw [project_in_bound_eq_round' _ _ _ _ hbound]
+  rw [project_in_bound_eq_round' _ _ _ _ hbound]
   simp [to_p3109]
   clear * -
   have := @round_to_fp_faithful f rnd x
@@ -766,80 +845,10 @@ lemma project_faithful (x : ℝ) (rnd : RoundingMode) (sat : SaturationMode) :
   rw [min_fp_eq_min] at *
   assumption
 
-lemma encode_aux_is_finite {x : ℝ} :
-  (h : Sum.inl (x:EReal) ∈ value_set f) →
-  (@encode_aux f (Sum.inl x) h).a.is_finite := by
-  intro h
-  simp [encode_aux]; unfold encode_ret.a
-  split
-  expose_names; exfalso; simp at heq; rw [lift_none_bot] at heq; apply EReal.bot_ne_coe x; simp [<-heq]
-  expose_names; exfalso; simp at heq; rw [lift_some_none_top] at heq; apply EReal.top_ne_coe x; simp [<-heq]
-  expose_names; exfalso; simp at heq
-  split <;> simp [is_finite]
-
-lemma finite_encode_self {x : p3109 f} :
-  x.is_finite →
-  (h : Sum.inl (x:EReal) ∈ value_set f) →
-  @encode f (Sum.inl x) h = x := by
-  rcases heq:x <;> simp [is_finite]
-  simp [value_set]
-  intro x h
-  expose_names
-  simp [to_ereal]
-  norm_cast
-  simp_rw [<-lift_some_some_ereal]
-  simp [encode, encode_aux, to_format]
-  unfold encode_ret.a
-  split
-  simp
-  expose_names
-  rcases h_2 with hm0|hne
-  simp [hm0] at h_1 ⊢
-  rcases h_1 with ⟨_, hle, _⟩|⟨_, heq, _⟩
-  exfalso
-  simp [vnum, to_format] at hle; revert hle; simp
-  simp [to_format] at heq
-  simp [heq]
-  exfalso; revert hne; simp
-  apply ne_of_gt; apply zpow_pos; simp
-  -- nonzero
-  simp
-  have := @encode_m f (Sum.inl (some (some (m*2^e))))
-    (by
-      simp [value_set]
-      exists .p3109_finite m e hm h_1)
-    (by
-      simp [encode_aux]
-      unfold encode_ret.a
-      rw [dif_neg (by assumption)]
-      simp [is_finite])
-    (by rw [lift_some_some_ereal]; simp; expose_names; simp at h_2; exact h_2)
-  simp [encode_aux] at this
-  rw [dif_neg (by assumption)] at this
-  unfold encode_ret.a at this
-  simp [fnum] at this
-  rify at ⊢ this
-  rw [this] ;
-  have := canonical_fp_of_canonical_p3109 _ h_1
-  rw [<-flt_equivalent' _ _ (by expose_names; simp  at h_2; exact h_2.1) rfl] at this
-  rw [fexp, digits_abs', to_format] at this
-  simp [emin_lsb, emin] at this
-
-  simp [abs_mul]
-  rewrite (occs := .pos [2]) [abs_of_pos (by apply zpow_pos; simp)]
-  rewrite (occs := .pos [3]) [abs_of_pos (by apply zpow_pos; simp)]
-  rw [log_mul _ (by simp; expose_names; simp at h_2; exact h_2.1)]
-  norm_cast at ⊢ this
-  have : max (Int.log 2 (↑|m|:ℝ) + e) (1 - f.bias) - ↑f.P + 1 = e := by omega
-  rw [this]; simp
-  simp at this
-  have : (-1 + (↑f.P - max (Int.log 2 |(m:ℝ)| + e) (1 - f.bias))) = -e := by omega
-  rw [this, mul_assoc, <-zpow_add₀ (by simp)]
-  simp
 
 lemma x_overflow_project_max_or_top {x : ℝ} :
   @max_finite f < x →
-  let p : EReal := @project f x rnd sat;
+  let p : EReal := @project f domain_sat_consistent x rnd sat;
   p = @max_finite f ∨
   p = ⊤ := by
   intro hlt
@@ -853,7 +862,7 @@ lemma x_overflow_project_max_or_top {x : ℝ} :
   simp [project]
   simp_rw [round_to_precision_eq_simp, round_to_precision_eq, round_to_fp_eq]
   rcases this with heq|heq <;> simp_rw [heq]
-  right; simp [encode, encode_aux, to_ereal]
+  right; simp [encode, to_ereal]
   left
   rw [finite_encode_self]
   apply max_is_finite
@@ -877,7 +886,7 @@ lemma x_overflow_project_max_or_top {x : ℝ} :
 
 lemma finite_project_self {x : p3109 f} :
   x.is_finite →
-  @project f x rnd sat = x := by
+  @project f domain_sat_consistent x rnd sat = x := by
   rcases x <;> simp [is_finite]
   simp [to_ereal]
   simp [project]
@@ -907,8 +916,7 @@ lemma finite_project_self {x : p3109 f} :
     simp [to_real])] at hsat
   simp [hsat]
   simp_rw [<-lift_some_some_ereal]
-  simp [encode, encode_aux]
-  unfold encode_ret.a
+  simp [encode]
   split
   simp [to_format]
   expose_names
@@ -930,14 +938,12 @@ lemma finite_project_self {x : p3109 f} :
       simp [value_set]
       exists .p3109_finite m e hm h; simp [value_set, hround]; rw [lift_some_some_ereal]; norm_cast)
     (by
-      simp [encode_aux]
-      unfold encode_ret.a
+      simp [encode]
       rw [dif_neg (by assumption)]
       simp [is_finite])
     (by rw [lift_some_some_ereal]; simp; assumption)
-  simp [encode_aux] at this
+  simp [encode] at this
   rw [dif_neg (by assumption)] at this
-  unfold encode_ret.a at this
   simp [fnum] at this
   rify at ⊢ this
   rw [this]; clear this hsat; clear hsat
@@ -963,7 +969,7 @@ lemma finite_project_self {x : p3109 f} :
 lemma x_overflow_project_min_or_bot {x : ℝ} :
   f.s = .signed →
   x < @min_finite f →
-  let p : EReal := @project f x rnd sat;
+  let p : EReal := @project f domain_sat_consistent x rnd sat;
   p = @min_finite f ∨
   p = ⊥ := by
   intro hs hovf
@@ -979,7 +985,7 @@ lemma x_overflow_project_min_or_bot {x : ℝ} :
   simp [project]
   simp_rw [round_to_precision_eq_simp, round_to_precision_eq, round_to_fp_eq]
   rcases this with heq|heq <;> simp_rw [heq]
-  right; simp [encode, encode_aux, to_ereal]
+  right; simp [encode, to_ereal]
   left
   rw [finite_encode_self]
   apply min_is_finite

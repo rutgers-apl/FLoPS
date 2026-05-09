@@ -1,5 +1,5 @@
 import Flops.P3109.Rounding
-import Flops.RoundingError
+import Flops.Core.RoundingError
 
 lemma rounding_error_p3109_lt_ulp  (r : ℝ) (rnd : RoundingMode) :
   |r - @round_to_fp f rnd r| < @ulp f.to_format (@round_to_fp f rnd r) (@round_to_fp_canonical f rnd r)

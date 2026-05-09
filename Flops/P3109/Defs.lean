@@ -1,5 +1,5 @@
-import Flops.Defs
-import Flops.RoundOp
+import Flops.Core.Defs
+import Flops.Core.RoundOp
 import Mathlib.Data.EReal.Basic
 import Mathlib.Data.EReal.Operations
 import Init.Data.ToString.Basic
@@ -58,7 +58,7 @@ def emax_lsb (f : p3109_format) : ℤ := f.emax - f.P + 1
 def emin (f : p3109_format) : ℤ := 1-f.bias
 -- e.g. 1 * emin_lsb
 def emin_lsb (f : p3109_format) : ℤ := f.emin - f.P + 1
-def to_format (f : p3109_format) : Format := ⟨f.P, -f.emin_lsb, f.bias⟩
+def to_format (f : p3109_format) : Format := ⟨f.P, -f.emin_lsb, f.bias, f.h_P.1⟩
 
 -- for the overflow immunity proof
 -- maintaining the condition that P >=3 similar to Sylvie Boldo's overflow immunity proof for Fast2Sum.
@@ -173,7 +173,8 @@ lemma normal_p3109_negate {x : float 2} :
   @normal_p3109 f x →
   @normal_p3109 f (fopp x) := by
   simp [fopp]
-  intro ⟨_, _, _, _⟩
+  intro ⟨_, hle, _, _⟩
+  simp at hle
   constructor
   apply bounded_negate; assumption
   simp
@@ -205,8 +206,9 @@ lemma canonical_p3109_negate {x : float 2} :
   @canonical_p3109 f x →
   @canonical_p3109 f (fopp x) := by
   intro can
-  rcases can with _|⟨_, _, _⟩
+  rcases can with _|⟨_, _, hlt⟩
   left; apply normal_p3109_negate; assumption
+  simp at hlt
   right
   simp [fopp]
   constructor;
@@ -327,7 +329,7 @@ noncomputable def min_finite : p3109 f :=
       constructor
       have : f.emin_lsb = -f.to_format.dexp := by simp [to_format]
       rw [this]
-      apply bounded_0
+      apply bounded_0 (by omega)
       simp [to_format, vnum]
 
     .p3109_finite 0 f.emin_lsb h1 h2
@@ -337,7 +339,7 @@ noncomputable def min_finite : p3109 f :=
     |.p3109_infinity h1 h2 hm => .p3109_infinity h1 h2 hm
     |.p3109_finite m e hm hcan =>
     have h2 : canonical_p3109 ⟨-m, e⟩ := by
-      rcases hcan with ⟨hb, hm, he, hm'⟩|⟨hb, _, _⟩
+      rcases hcan with ⟨hb, hm, he, hm'⟩|⟨hb, _, hlt⟩
       left
       constructor
       apply bounded_negate _ hb
@@ -355,7 +357,7 @@ noncomputable def min_finite : p3109 f :=
       right
       constructor
       apply bounded_negate _ hb
-      simp
+      simp at ⊢ hlt
       constructor <;> assumption
 
     have h1 : f.s = Signedness.unsigned → 0 ≤ -m := by
@@ -370,7 +372,7 @@ def p3109_0 : p3109 f :=
       constructor
       have : f.emin_lsb = -f.to_format.dexp := by simp [to_format]
       rw [this]
-      apply bounded_0
+      apply bounded_0 (by omega)
       simp [to_format, vnum]
     .p3109_finite 0 f.emin_lsb h1 h2
 

@@ -1,4 +1,4 @@
-import Flops.Defs
+import Flops.Core.Defs
 
 import Mathlib.Data.Int.Log
 import Mathlib.Data.Real.Archimedean
@@ -57,17 +57,17 @@ def proj2 (f : float β) :
   simp
 
 -- the following lemmas show that 0 is rounded to 0 with exponent equal to emin (which is -dexp)
-lemma nearest_0 : @nearest β format 0 ⟨0, -format.dexp⟩ := by
+lemma nearest_0 (hβ : β > 1) : @nearest β format 0 ⟨0, -format.dexp⟩ := by
   simp [nearest, to_real]
-  apply bounded_0
+  simp [bounded_0 hβ, <-abs_mul]
 
-lemma roundup_0 : @roundup β format 0 ⟨0, -format.dexp⟩ := by
+lemma roundup_0 (hβ : β > 1) : @roundup β format 0 ⟨0, -format.dexp⟩ := by
   simp [roundup, to_real]
-  apply bounded_0
+  exact bounded_0 hβ
 
-lemma rounddown_0 : @rounddown β format 0 ⟨0, -format.dexp⟩ := by
+lemma rounddown_0 (hβ : β > 1) : @rounddown β format 0 ⟨0, -format.dexp⟩ := by
   simp [rounddown, to_real]
-  apply bounded_0
+  exact bounded_0 hβ
 
 
 -- computing the number of bits in the input m.
@@ -266,16 +266,13 @@ lemma flt_equivalent (m e : ℤ) :
   rw [this] at Hlt
   norm_cast at Hlt
   norm_cast
-  simp
-  simp
-  rw [<-Heq]
-  assumption
-  simp [vnum, Hβ, abs_of_nonneg]
+  simp; omega
+  simp [vnum, Hβ]
   rify
   have := Int.zpow_log_le_self (b := 2) (r := (|m| : ℝ) * (2 : ℤ)^(1 : ℤ)) ?_ ?_
   revert this
   push_cast
-  rw [log_mul, this, abs_mul]
+  rw [log_mul, this]
   simp [mul_comm]
   simp; omega
   decide
@@ -317,10 +314,10 @@ lemma flt_equivalent' (m e : ℤ) (hne : ¬m = 0) (hb : β = 2) :
     rw [<-pow_sub₀, hb] at hlow
     norm_cast; norm_cast at hlow
     rw [Int.subNatNat_of_le]; norm_cast
-    apply precpos; simp [hb]; apply precpos; simp
+    exact format.precpos; simp [hb]; exact format.precpos; simp
     simp [hb]; norm_cast; rw [Int.subNatNat_of_le]; norm_cast; rw [Nat.sub_add_cancel]
     simp [vnum, hb] at hup; norm_cast at hup
-    repeat apply precpos
+    repeat exact format.precpos
   rw [max_eq_left, this]
   linarith
   rw [this]; linarith
@@ -340,7 +337,7 @@ lemma flt_equivalent' (m e : ℤ) (hne : ¬m = 0) (hb : β = 2) :
   apply lt_of_lt_of_le hup
   norm_cast
   rw [hb, Nat.pow_le_pow_iff_right]; omega; simp; simp
-  simp; assumption; simp [hb]; apply precpos; simp [hb]
+  simp; assumption; simp [hb]; exact format.precpos; simp [hb]
 
 -- shift left
 -- but we don't touch values that require rounding or normalization, i.e. those having significand greater than 2^p
@@ -533,7 +530,7 @@ theorem canonicalize_correct_all (x : float β) :
   cases eq_or_ne x.fnum 0
   suffices @canonicalize β format x = ⟨0, -format.dexp⟩ by
     simp [this]
-    apply And.intro canonical_0
+    apply And.intro (canonical_0 (by omega))
     simp [to_real]; left
     assumption
   simp [canonicalize]
@@ -552,10 +549,7 @@ theorem canonicalize_idemp (x : float 2) :
   @canonicalize 2 format x = x := by
   intro hcan
   have ⟨hcan', heq⟩ := @canonicalize_correct_all 2 format x rfl (canonical_bounded hcan)
-  apply canonical_unique
-  assumption
-  assumption
-  simp [heq]
+  exact canonical_unique (by omega) _ _ hcan' hcan (by simp [heq])
 
 theorem canonicalize_unique (x y : float β) :
   β = 2 →
@@ -564,9 +558,6 @@ theorem canonicalize_unique (x y : float β) :
   @bounded_float β format y →
   @canonicalize β format x = @canonicalize β format y := by
   intro Hβ Heq Hx Hy
-  have ⟨_, H1⟩ := canonicalize_correct_all _ Hβ Hx
-  have ⟨_, H2⟩ := canonicalize_correct_all _ Hβ Hy
-  apply canonical_unique
-  assumption
-  assumption
-  rw [<-H1, <-H2, Heq]
+  have ⟨hcan1, H1⟩ := canonicalize_correct_all _ Hβ Hx
+  have ⟨hcan2, H2⟩ := canonicalize_correct_all _ Hβ Hy
+  exact _root_.canonical_unique (by omega) _ _ hcan1 hcan2 (by rw [←H1, ←H2, Heq])

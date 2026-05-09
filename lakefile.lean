@@ -8,10 +8,10 @@ package "flops" where
   ]
   -- add any additional package configuration options here
 
-require "leanprover-community" / "mathlib" @ git "v4.21.0-rc3"
+require "leanprover-community" / "mathlib" @ git "v4.28.0"
 
 @[default_target]
-lean_lib Flops where
+lean_lib «Flops» where
   -- add any library configuration options here
 
 lean_exe «Run» where

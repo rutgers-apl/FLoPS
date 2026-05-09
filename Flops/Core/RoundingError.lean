@@ -1,4 +1,4 @@
-import Flops.RoundOp
+import Flops.Core.RoundOp
 
 variable {β : ℕ} {format : Format}
 
@@ -9,6 +9,9 @@ noncomputable def eps (f : Format) : ℝ := 2^(-f.precision : ℤ)
 -- ulp of a *canonical* floating point value!
 noncomputable def ulp (x : float 2) {_ : @canonical 2 format x} : ℝ :=
   2 ^ x.exp
+noncomputable def u (fmt:Format) : ℝ := (2 : ℝ) ^ (- (fmt.precision : ℤ))
+noncomputable def ulp' {f:Format} (r : ℝ) : ℝ :=
+  if 2^(f.emin+f.precision-1) ≤ |r| then 2*u f*ufp r else 2^f.emin
 
 lemma ufp_lt_iff_r_lt {r σ : ℝ} {k : ℤ} (h : σ=2^k) :
   ufp r < σ ↔ |r| < σ := by
@@ -38,10 +41,10 @@ lemma lt_2ufp {r:ℝ}:
 lemma normal_ufp {f : Format} {x : float 2} :
   @normal 2 f x →
   ufp x = 2^(f.precision-1+x.exp) := by
-  have hprec := @precpos f
+  have hprec := f.precpos
   rintro ⟨⟨hlt, _⟩, hle⟩
   simp [vnum] at hle hlt
-  rw [normal_iff] at hle
+  rw [float_normal_iff'] at hle
   simp [ufp]
   split
   expose_names; exfalso
@@ -75,20 +78,20 @@ lemma subnormal_ufp_lt {f : Format} {x : float 2} :
   ufp x < 2^(f.precision-1-f.dexp) := by
   rintro ⟨_, heq, hlt⟩
   simp [vnum] at hlt
-  rw [subnormal_iff] at hlt
+  rw [subnormal_iff'] at hlt
   simp [ufp]
   split; apply zpow_pos; simp
   rw [zpow_lt_zpow_iff_right₀ (by simp)]
   rw [<-Int.lt_zpow_iff_log_lt (by simp) (by simp; assumption)]
   simp [to_real, heq, abs_mul]
-  rewrite (occs := .pos [2]) [abs_of_pos (by simp; apply zpow_pos; simp)]
+  rewrite (occs := .pos [2]) [abs_of_pos (by apply zpow_pos; simp)]
   rw [<-lt_div_iff₀ (by simp; apply zpow_pos ; simp)]; simp
   rw [<-zpow_add₀ (by simp)]; simp
   rify at hlt
   apply lt_of_lt_of_eq hlt
   rw [<-zpow_natCast]
   rw [zpow_right_inj₀ (by simp) (by simp)]
-  have hprec := @precpos f
+  have hprec := f.precpos
   omega
 
 lemma ufp_pow2_eq_self {e:ℤ} {r:ℝ} :
@@ -166,7 +169,7 @@ lemma underflow_exact {f : Format} {a b : float 2} [ValidRound rnd] :
   simp [hx]
   expose_names
   rw [abs_eq (by simp)] at h
-  have _ := @precpos f
+  have _ := f.precpos
   rcases h with heq|heq
   set x : float 2 := ⟨2^(f.precision-1), 1-f.dexp⟩ with hx
   have : (a+b:ℝ) = x := by
@@ -337,7 +340,7 @@ lemma rne_error_le_half_ulp {f : Format} {r : ℝ} :
     simp [scaled_mantissa]; simp [hne0]; apply ne_of_gt; apply zpow_pos; simp
     apply le_trans _ hle
     rw [<-zpow_natCast, zpow_le_zpow_iff_right₀ (by simp)]
-    have _ := @precpos f
+    have _ := f.precpos
     omega
     simp
     exact hlt

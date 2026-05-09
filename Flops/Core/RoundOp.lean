@@ -1,5 +1,5 @@
-import Flops.Defs
-import Flops.Rounding
+import Flops.Core.Defs
+import Flops.Core.Rounding
 
 /-
 this file defines rounding as a function
@@ -10,14 +10,23 @@ it satisfies a type class [ValidRound], which should be faithful and monotonic
 variable {β : ℕ} {format : Format}
 
 
-lemma normal_iff {f : Format} {m : ℤ} :
+lemma float_normal_iff {f : Format} {m : ℤ} :
   2^f.precision ≤ |2*m| ↔
   2^(f.precision-1) ≤ |m| := by
   simp [abs_mul]; rify
   rw [<-div_le_iff₀' (by simp)]
   rewrite (occs := .pos [3]) [<-pow_one (2)]
   rw [div_eq_mul_inv, <-pow_sub₀ _ (by simp)]
-  apply precpos
+  exact f.precpos
+
+lemma float_normal_iff' {f : Format} {m : ℤ} :
+  2^f.precision ≤ 2*|m| ↔
+  2^(f.precision-1) ≤ |m| := by
+  rify
+  rw [<-div_le_iff₀' (by simp)]
+  rewrite (occs := .pos [3]) [<-pow_one (2)]
+  rw [div_eq_mul_inv, <-pow_sub₀ _ (by simp)]
+  exact f.precpos
 
 
 lemma subnormal_iff {f : Format} {m : ℤ} :
@@ -27,7 +36,16 @@ lemma subnormal_iff {f : Format} {m : ℤ} :
   rw [<-lt_div_iff₀' (by simp)]
   rewrite (occs := .pos [3]) [<-pow_one (2)]
   rw [div_eq_mul_inv, <-pow_sub₀ _ (by simp)]
-  apply precpos
+  exact f.precpos
+
+lemma subnormal_iff' {f : Format} {m : ℤ} :
+  2*|m| < 2^f.precision ↔
+  |m| < 2^(f.precision-1) := by
+  rify
+  rw [<-lt_div_iff₀' (by simp)]
+  rewrite (occs := .pos [3]) [<-pow_one (2)]
+  rw [div_eq_mul_inv, <-pow_sub₀ _ (by simp)]
+  exact f.precpos
 
 
 noncomputable def digits_real (m : ℝ) : ℤ :=
@@ -73,7 +91,7 @@ lemma mantissa_normal_of_fexp_ne_dexp (x : ℝ) :
   2 ^ (format.precision - 1) ≤ |x'| ∧ |x'| < 2 ^ format.precision := by
   simp
   intros Hx' Hlt
-  have _ := @precpos format
+  have _ := format.precpos
   set k := format.precision-1 with Hk
   rw [<-Nat.sub_add_cancel (n := format.precision) (m := 1), <-Hk]
   rw [<-zpow_natCast, <-zpow_natCast]
@@ -82,9 +100,9 @@ lemma mantissa_normal_of_fexp_ne_dexp (x : ℝ) :
   apply ne_of_gt
   apply zpow_pos
   simp
-  simp [Hx', scaled_mantissa, Hk, abs_mul]
-  rw [<-zpow_neg]
+  simp [scaled_mantissa, Hk, abs_mul]
   rewrite (occs := .pos [2])[abs_of_pos]
+  rw [<-zpow_neg]
   rw [log_mul']
   simp [fexp_real']
   rw [max_eq_left]
@@ -103,7 +121,7 @@ lemma mantissa_subnormal_of_fexp_dexp (x : ℝ) :
   |x'| < 2 ^ (format.precision - 1) := by
   simp [fexp_real', scaled_mantissa]
   intros
-  rw [max_eq_right, abs_mul]
+  rw [max_eq_right]
   rewrite (occs := .pos [2]) [abs_of_pos]
   rw [<-lt_div_iff₀]; simp
   rw [<-zpow_natCast, <-zpow_sub₀]
@@ -112,7 +130,7 @@ lemma mantissa_subnormal_of_fexp_dexp (x : ℝ) :
   simp
   norm_cast
   rw [zpow_le_zpow_iff_right₀]
-  have _ := @precpos format
+  have _ := format.precpos
   rw [Int.ofNat_sub]
   simp
   repeat linarith
@@ -128,7 +146,7 @@ lemma scaled_mantissa_bounded (x : ℝ) :
   have _ := @mantissa_subnormal_of_fexp_dexp format x ?_ ?_
   apply lt_trans; assumption
   rw [pow_lt_pow_iff_right₀]
-  have _ := @precpos format
+  have _ := format.precpos
   omega; simp
   repeat assumption
   have ⟨_, _⟩ := @mantissa_normal_of_fexp_ne_dexp format x ?_ ?_
@@ -261,9 +279,9 @@ lemma round_fp_opp (rnd : ℤ → ℝ → ℤ) (x : ℝ) :
   rw [Int.neg_ediv_of_dvd]
   have divide : 2 ∣ (@vnum 2 format : ℤ) := by
     simp [vnum]
-    rw [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
-    simp
-    apply precpos
+    left
+    apply ne_of_gt
+    simp [format.precpos]
 
   rw [abs_eq] at h_1
   rcases h_1 with heq|heq <;>simp [heq]
@@ -282,24 +300,24 @@ lemma valid_round_fp_bounded [h : Faithful rnd] (x : ℝ) :
     simp [heq, vnum]
     rw [abs_of_pos, <-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
     simp
-    apply precpos
+    exact format.precpos
     rw [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
     simp
-    apply precpos
+    exact format.precpos
 
     simp [heq, vnum]
     rw [abs_of_neg, Int.neg_ediv_of_dvd]; simp
     rewrite (occs := .pos [1]) [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
     simp
     rw [pow_lt_pow_iff_right₀]
-    simp; apply precpos; simp; apply precpos
+    simp; exact format.precpos; simp; exact format.precpos
     rw [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
-    simp; apply precpos
+    simp; exact format.precpos
     rw [Int.neg_ediv_of_dvd]
     rw [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
-    simp; apply precpos
+    simp; exact format.precpos
     rw [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
-    simp; apply precpos
+    simp; exact format.precpos
     simp [vnum]
 
     have _ : -format.dexp ≤ @fexp_real' format x := by simp [fexp_real']
@@ -329,21 +347,21 @@ lemma valid_round_fp_bounded [h : Faithful rnd] (x : ℝ) :
 -- rounded result is canonical
 lemma valid_round_fp_canonical [h : Faithful rnd] (x : ℝ) :
   @canonical 2 format (@round_fp format rnd x) := by
-  have precpos := @precpos format
+  have precpos := format.precpos
   have divide : 2 ∣ (@vnum 2 format : ℤ) := by
     simp [vnum]
-    rw [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
-    simp
-    apply precpos
+    left
+    apply ne_of_gt
+    simp [format.precpos]
   have vnumdiv2 : (@vnum 2 format : ℤ)/ 2 = 2^(format.precision-1) := by
     simp [vnum]
     rewrite (occs := .pos [1]) [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
     simp
-    apply precpos
+    exact format.precpos
   have hbounded := @valid_round_fp_bounded format rnd _ x
   simp [round_fp]
   split
-  exact canonical_0
+  exact canonical_0 (by omega)
   simp [round_fp_ne0]
   simp [round_fp_ne0] at hbounded
 
@@ -366,7 +384,7 @@ lemma valid_round_fp_canonical [h : Faithful rnd] (x : ℝ) :
   refine Int.ediv_pos_of_pos_of_dvd ?_ ?_ ?_
   apply pow_pos; simp
   simp
-  simp [vnum] at divide
+  simp [vnum] at divide ⊢
   assumption
   simp [fexp_real']
   omega
@@ -426,7 +444,7 @@ lemma valid_round_fp_canonical [h : Faithful rnd] (x : ℝ) :
   assumption
   constructor
   simp; simp
-  rw [abs_mul]; simp [vnum]
+  simp [vnum]
   rify
   rw [<-lt_div_iff₀']
   rewrite (occs := .pos [3]) [<-pow_one 2]
@@ -448,7 +466,7 @@ lemma valid_round_fp_canonical [h : Faithful rnd] (x : ℝ) :
   rewrite (occs := .pos [3]) [<-pow_one 2]
   rw [mul_comm, <-pow_add]
   rw [Nat.sub_add_cancel (n := format.precision) (m := 1)]
-  simp; omega
+  omega
 
   expose_names
   simp [<-h_3]
@@ -462,14 +480,14 @@ lemma valid_round_fp_canonical [h : Faithful rnd] (x : ℝ) :
   rewrite (occs := .pos [3]) [<-pow_one 2]
   rw [mul_comm, <-pow_add]
   rw [Nat.sub_add_cancel (n := format.precision) (m := 1)]
-  simp; omega
+  omega
 
   have ⟨hle, _⟩ := @mantissa_normal_of_fexp_ne_dexp format x (by assumption) (by assumption)
   left
   constructor
   assumption
   simp [vnum]
-  rw [abs_mul]; simp
+
   rify
   rw [<-div_le_iff₀']
   rewrite (occs := .pos [3]) [<-pow_one 2]
@@ -496,14 +514,14 @@ lemma valid_round_simp (x : ℝ) :
   simp
   have divide : 2 ∣ (@vnum 2 format : ℤ) := by
     simp [vnum]
-    rw [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
-    simp
-    apply precpos
+    left
+    apply ne_of_gt
+    simp [format.precpos]
   have vnumdiv2 : (@vnum 2 format : ℤ)/ 2 = 2^(format.precision-1) := by
     simp [vnum]
     rewrite (occs := .pos [1]) [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
     simp
-    apply precpos
+    exact format.precpos
 
   . case isTrue heq =>
     rw [abs_eq] at heq; rcases heq with heq|heq <;> rw [heq]
@@ -512,7 +530,7 @@ lemma valid_round_simp (x : ℝ) :
     rw [<-zpow_natCast, <-zpow_natCast]
     rw [<-zpow_add₀, <-zpow_add₀]
     rw [zpow_right_inj₀]
-    have _ := @precpos format
+    have _ := format.precpos
     rw [Int.ofNat_sub]; simp
     assumption
     simp; simp; simp; simp
@@ -522,7 +540,7 @@ lemma valid_round_simp (x : ℝ) :
     rw [<-zpow_natCast, <-zpow_natCast]
     rw [<-zpow_add₀, <-zpow_add₀]
     rw [zpow_right_inj₀]
-    have _ := @precpos format
+    have _ := format.precpos
     rw [Int.ofNat_sub]; simp
     assumption
     simp; simp; simp; simp
@@ -551,7 +569,6 @@ lemma round_fp_bounded_self (rnd : ℤ → ℝ → ℤ) [hv : Faithful rnd] (x :
     rcases y with ⟨my, ey⟩
     simp [fexp] at hy
     simp
-    rw [abs_mul]
     rewrite (occs := .pos [2]) [abs_of_pos]
     rw [log_mul']
     rw [digits_abs'] at hy
@@ -612,9 +629,9 @@ noncomputable def to_odd {f : Format} (e : ℤ) (m : ℝ) : ℤ :=
     if Odd (⌊m⌋) then ⌊m⌋ else ⌈m⌉
 
 inductive Stochastic where
-  |A (N:ℕ) (R:ℕ) (h : 0 < R ∧ R < 2^N)
-  |B (N:ℕ) (R:ℕ) (h : 0 < R ∧ R < 2^N)
-  |C (N:ℕ) (R:ℕ) (h : 0 < R ∧ R < 2^N)
+  |A (N:ℕ) (R:ℕ) (h : 0 ≤ R ∧ R < 2^N)
+  |B (N:ℕ) (R:ℕ) (h : 0 ≤ R ∧ R < 2^N)
+  |C (N:ℕ) (R:ℕ) (h : 0 ≤ R ∧ R < 2^N)
 
 -- stochstic rounding is not monotonic so it doesn't satisfy the ValidRound typeclass
 noncomputable def stochastic (mode : Stochastic) (_ : ℤ) (m : ℝ) : ℤ :=
@@ -969,7 +986,7 @@ instance [hchoice : ValidChoice choice] : ValidRound (round_choice_abs choice) w
       have : 2*(x - ⌊x⌋) ≤ 1 := by linarith
       apply lt_of_le_of_ne this
       simp
-      contrapose h; simp at h ⊢
+      contrapose h
       linarith
     have : ⌊x⌋+1≤⌊y⌋:=by omega
     rw [ceil_eq_floor_add_one_of_fract_ne0 _ (by linarith)]
@@ -991,7 +1008,7 @@ instance [hchoice : ValidChoice choice] : ValidRound (round_choice_abs choice) w
       have : 2*(x - ⌊x⌋) ≤ 1 := by linarith
       apply lt_of_le_of_ne this
       simp
-      contrapose h; simp at h ⊢
+      contrapose h
       linarith
     have : ⌊x⌋+1≤⌊y⌋:=by omega
     rw [ceil_eq_floor_add_one_of_fract_ne0 _ (by linarith)]
@@ -1154,7 +1171,7 @@ lemma to_odd_symm {f : Format} :
   exfalso
   rw [ceil_eq_floor_add_one_of_fract_ne0 _ (by linarith)] at h_1
   revert h_1; simp
-  rw [Int.even_add_one]; simp; exact h_2
+  exact h_2
   have : m = ⌊m⌋ := by
     unfold Int.fract at heq
     linarith
@@ -1169,7 +1186,7 @@ lemma to_odd_symm {f : Format} :
   exfalso
   rw [ceil_eq_floor_add_one_of_fract_ne0 _ (by linarith)] at h_1
   revert h_1; simp
-  apply Even.add_one h_2
+  exact h_2
   rw [Int.ceil_neg]
   have : m = ⌊m⌋ := by
     unfold Int.fract at heq
@@ -1260,7 +1277,7 @@ lemma valid_round_monotone_aux (x y : ℝ) [ValidRound rnd] :
   0 < x →
   x ≤ y →
   (@round_fp_ne0 format rnd x : ℝ) ≤ @round_fp_ne0 format rnd y := by
-  have _ := @precpos format
+  have _ := format.precpos
   simp [valid_round_simp]
   simp [to_real]
   intros
@@ -1329,7 +1346,7 @@ lemma roundup_strict_monotone_aux (x : float 2) (y : ℝ) :
   0 < (x:ℝ) →
   x < y →
   (x:ℝ) < @round_fp_ne0 format (Function.const ℤ (⌈.⌉)) y := by
-  have _ := @precpos format
+  have _ := format.precpos
   simp [valid_round_simp]
   intro hcan hgt0 hlt
   have hmx : 0 < x.fnum := by
@@ -1419,7 +1436,7 @@ lemma rounddown_strict_monotone_aux (x : ℝ) (y : float 2) :
   0 < x →
   x < y →
   @round_fp_ne0 format (Function.const ℤ (⌊.⌋)) x < (y:ℝ) := by
-  have _ := @precpos format
+  have _ := format.precpos
   simp [valid_round_simp]
   intro hcan hgt0' hlt
   have hgt0 : 0 < (y : ℝ) := by linarith
@@ -1472,7 +1489,7 @@ lemma rounddown_strict_monotone_aux (x : ℝ) (y : float 2) :
     rw [<-div_le_iff₀'] at hle
     rewrite (occs := .pos [3]) [<-pow_one 2] at hle
     rw [div_eq_mul_inv, <-pow_sub₀] at hle
-    norm_cast at hle; norm_cast; simp; omega; simp
+    norm_cast at hle; norm_cast; omega; simp
     exfalso
     simp [heq] at hlt'
     simp [hex, fexp_real'] at hlt'
@@ -1792,20 +1809,20 @@ lemma round_choice_le (e : ℤ) (x : ℝ) (z : ℤ) [h : ValidChoice choice] :
   . case isTrue heq =>
     unfold Int.fract at heq
     rcases hor with hfloor | hceil
-    simp [hfloor, abs_sub_comm, heq]; rw [abs_of_pos]
+    simp [hfloor, heq]
     have : x = ⌊x⌋+2⁻¹ := by linarith
-    rw [this, add_sub_right_comm]
+    rw [this, add_sub_right_comm]; simp
     rw [le_abs]
     rcases ⌊x⌋.decLt z with Hle | _
     simp at Hle
     left
     simp; assumption
     right; simp [<-two_mul]; norm_cast; linarith
-    simp
+
 
     simp [hceil, sub_add_eq_sub_sub, heq, abs_sub_comm]
     have : 1 = 2 * (2⁻¹:ℝ) := by simp
-    rw [this, two_mul]; simp; rw [abs_of_pos]
+    rw [this, two_mul]; simp
     have : x = ⌊x⌋+2⁻¹ := by linarith
     rw [this, add_sub_right_comm]
     rw [le_abs]
@@ -1813,7 +1830,7 @@ lemma round_choice_le (e : ℤ) (x : ℝ) (z : ℤ) [h : ValidChoice choice] :
     simp at Hle
     left; simp; assumption
     right; simp [<-two_mul]; norm_cast; linarith
-    simp
+
   apply round_le
 
 lemma abs_sub_round_choice_abs (e : ℤ) (x : ℝ) [h : ValidChoice choice] :
@@ -1845,7 +1862,7 @@ lemma round_choice_abs_le (e : ℤ) (x : ℝ) (z : ℤ) [h : ValidChoice choice]
   . case isTrue heq =>
     unfold Int.fract at heq
     rcases hor with hfloor | hceil
-    simp [hfloor, abs_sub_comm, heq]; rw [abs_of_pos]
+    simp [hfloor, heq]
     have : x = ⌊x⌋+2⁻¹ := by linarith
     rw [this, add_sub_right_comm]
     rw [le_abs]
@@ -1854,11 +1871,10 @@ lemma round_choice_abs_le (e : ℤ) (x : ℝ) (z : ℤ) [h : ValidChoice choice]
     left
     simp; assumption
     right; simp [<-two_mul]; norm_cast; linarith
-    simp
 
     simp [hceil, sub_add_eq_sub_sub, heq, abs_sub_comm]
     have : 1 = 2 * (2⁻¹:ℝ) := by simp
-    rw [this, two_mul]; simp; rw [abs_of_pos]
+    rw [this, two_mul]; simp
     have : x = ⌊x⌋+2⁻¹ := by linarith
     rw [this, add_sub_right_comm]
     rw [le_abs]
@@ -1866,7 +1882,7 @@ lemma round_choice_abs_le (e : ℤ) (x : ℝ) (z : ℤ) [h : ValidChoice choice]
     simp at Hle
     left; simp; assumption
     right; simp [<-two_mul]; norm_cast; linarith
-    simp
+
   apply round_le
 
 noncomputable def rne_abs (x : ℝ) : float 2 :=
@@ -1942,7 +1958,7 @@ lemma roundup_real_roundup_pos (x : ℝ) :
     rw [Int.subNatNat_of_le]
     norm_cast
     norm_cast at Hle
-    apply precpos
+    exact format.precpos
     rw [zpow_le_zpow_iff_right₀]; omega
     simp
     apply zpow_nonneg
@@ -1971,7 +1987,7 @@ lemma roundup_real_roundup_pos (x : ℝ) :
 
   apply le_trans (b := 2^(format.precision-1)*2^y.exp)
   rw [<-zpow_natCast, <-zpow_add₀, <-zpow_natCast, <-zpow_add₀, zpow_le_zpow_iff_right₀]
-  have _ := @precpos format
+  have _ := format.precpos
   omega;simp;simp; simp
   refine mul_le_mul_of_nonneg_right ?_ ?_
   rcases Hy with Hn | Hs
@@ -1982,7 +1998,7 @@ lemma roundup_real_roundup_pos (x : ℝ) :
   rw [div_eq_mul_inv] at Hle
   rw [pow_sub₀]; simp
   assumption; simp
-  have _ := @precpos format
+  have _ := format.precpos
   omega
   repeat simp
   have : 0 < to_real y := by linarith
@@ -1998,8 +2014,7 @@ lemma roundup_real_roundup_pos (x : ℝ) :
   apply zpow_nonneg; simp
   -- ex = y.exp
   simp [to_real, <-Hex, Heq]
-  refine (mul_le_mul_right ?_).mpr ?_
-  apply zpow_pos; simp
+  refine mul_le_mul_of_nonneg_right ?_ ?_
   rw [this] at Hle
   simp [to_real, Heq] at Hle
   rw [<-le_div_iff₀, <-mul_div, div_self] at Hle
@@ -2007,7 +2022,9 @@ lemma roundup_real_roundup_pos (x : ℝ) :
   norm_cast
   exact Int.ceil_le.mpr Hle
   apply ne_of_gt; apply zpow_pos; simp
-  apply zpow_pos; simp; simp
+  apply zpow_pos; simp;
+  apply zpow_nonneg; simp
+  simp
   apply ne_of_gt Hx
 
 -- round_fp ⌊.⌋ is correct wrt. the rounddown relation
@@ -2051,7 +2068,7 @@ lemma rounddown_real_rounddown_pos (x : ℝ) :
       exfalso
       have := Hs.2.1
       omega
-    have := normal_bound _ this
+    have := normal_bound (by omega) _ this
     simp_rw [abs_of_pos Hlt] at this
     simp
     rw [<-sub_add_cancel y.exp 1, zpow_add₀, mul_comm _ (2 ^ 1 : ℝ), <-mul_assoc]
@@ -2063,7 +2080,7 @@ lemma rounddown_real_rounddown_pos (x : ℝ) :
     assumption
     simp [vnum]
     rw [<-Nat.sub_add_cancel (n:=format.precision) (m := 1), pow_add]
-    simp; norm_cast; norm_cast at this; apply precpos
+    simp; norm_cast; norm_cast at this; exact format.precpos
     rw [zpow_le_zpow_iff_right₀]; omega; simp; apply zpow_pos; simp
     simp; omega; simp
   rcases lt_or_eq_of_le Hle' with Hlt' | Heq
@@ -2092,7 +2109,7 @@ lemma rounddown_real_rounddown_pos (x : ℝ) :
   have _ := (canonical_bounded Hy).2
   have : -format.dexp < ex := by omega
   simp [Hex, fexp_real'] at this
-  omega; simp; apply precpos
+  omega; simp; exact format.precpos
   rw [zpow_le_zpow_iff_right₀]; omega; simp
   norm_cast; omega
   apply zpow_nonneg; simp; simp
@@ -2132,14 +2149,14 @@ lemma roundup_neg_rounddown (x : ℝ) :
     simp
     have divide : 2 ∣ (@vnum 2 format : ℤ) := by
       simp [vnum]
-      rw [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
-      simp
-      apply precpos
+      left
+      apply ne_of_gt
+      simp [format.precpos]
     have vnumdiv2 : (@vnum 2 format : ℤ)/ 2 = 2^(format.precision-1) := by
       simp [vnum]
       rewrite (occs := .pos [1]) [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
       simp
-      apply precpos
+      exact format.precpos
     rw [abs_eq] at heq; rcases heq with heq|heq <;> rw [heq]
     rw [Int.neg_ediv_of_dvd]
     simp [vnumdiv2]; assumption
@@ -2161,14 +2178,14 @@ lemma rounddown_neg_roundup (x : ℝ) :
   . case isTrue heq =>
     have divide : 2 ∣ (@vnum 2 format : ℤ) := by
       simp [vnum]
-      rw [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
-      simp
-      apply precpos
+      left
+      apply ne_of_gt
+      simp [format.precpos]
     have vnumdiv2 : (@vnum 2 format : ℤ)/ 2 = 2^(format.precision-1) := by
       simp [vnum]
       rewrite (occs := .pos [1]) [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
       simp
-      apply precpos
+      exact format.precpos
     rw [abs_eq] at heq; rcases heq with heq|heq <;> rw [heq]
     rw [Int.neg_ediv_of_dvd]
     simp [vnumdiv2]; assumption
@@ -2212,7 +2229,7 @@ lemma roundup_real_roundup (x : ℝ) :
   simp [round_fp]
   split
   .case inl.inr.isTrue Heq =>
-    rw [Heq]; apply roundup_0
+    rw [Heq]; apply roundup_0 (by omega)
   .case inl.inr.isFalse Hne =>
     exfalso; apply Hne; assumption
   apply roundup_real_roundup_pos
@@ -2249,7 +2266,7 @@ lemma rounddown_real_rounddown (x : ℝ) :
   simp; assumption
   simp [round_fp]; split
   .case inl.inr.isTrue Heq =>
-    rw [Heq]; apply rounddown_0
+    rw [Heq]; apply rounddown_0 (by omega)
   . case inl.inr.isFalse Hne =>
     exfalso; apply Hne; assumption
   apply rounddown_real_rounddown_pos
@@ -2268,7 +2285,7 @@ lemma nearest_round_nearest (x : ℝ) (choice : ℤ → ℤ → ℤ) [h : ValidC
   rcases eq_or_ne x 0 with Heq | Hne
   simp [round_nearest_all, round_fp]; split
   simp [nearest, to_real, Heq]
-  apply bounded_0
+  simp [bounded_0 (show (2:ℕ) > 1 by omega), <-abs_mul]
   .case inl.isFalse Hne =>
     exfalso
     apply Hne Heq
@@ -2330,10 +2347,10 @@ lemma nearest_round_nearest (x : ℝ) (choice : ℤ → ℤ → ℤ) [h : ValidC
   assumption; apply zpow_pos; simp
   rw [abs_mul]; rewrite (occs := .pos [3]) [abs_of_pos]
   apply lt_of_lt_of_le (b := 2⁻¹); simp; assumption
-  apply zpow_pos; simp; apply precpos; simp
+  apply zpow_pos; simp; exact format.precpos; simp
   apply zpow_nonneg; simp; simp
   rw [<-pow_zero 2, pow_le_pow_iff_right₀]
-  have _ := @precpos format; omega; simp; simp
+  have _ := format.precpos; omega; simp; simp
   assumption
   have Hle := Hy.2; simp at Hle
   have : -format.dexp < ex := by omega
@@ -2354,7 +2371,7 @@ lemma rne_abs_correct_no_tie_breaking (x : ℝ) (choice : ℤ → ℤ → ℤ) [
   rcases eq_or_ne x 0 with Heq | Hne
   simp [round_nearest_all, round_fp]; split
   simp [nearest, to_real, Heq]
-  apply bounded_0
+  simp [bounded_0 (show (2:ℕ) > 1 by omega), <-abs_mul]
   .case inl.isFalse Hne =>
     exfalso
     apply Hne Heq
@@ -2415,10 +2432,10 @@ lemma rne_abs_correct_no_tie_breaking (x : ℝ) (choice : ℤ → ℤ → ℤ) [
   assumption; apply zpow_pos; simp
   rw [abs_mul]; rewrite (occs := .pos [3]) [abs_of_pos]
   apply lt_of_lt_of_le (b := 2⁻¹); simp; assumption
-  apply zpow_pos; simp; apply precpos; simp
+  apply zpow_pos; simp; exact format.precpos; simp
   apply zpow_nonneg; simp; simp
   rw [<-pow_zero 2, pow_le_pow_iff_right₀]
-  have _ := @precpos format; omega; simp; simp
+  have _ := format.precpos; omega; simp; simp
   assumption
   have Hle := Hy.2; simp at Hle
   have : -format.dexp < ex := by omega
@@ -2430,12 +2447,6 @@ lemma rne_abs_correct_no_tie_breaking (x : ℝ) (choice : ℤ → ℤ → ℤ) [
 
 lemma even_odd_1 {z : ℤ} :
   Even z ↔ ¬Even (z+1) := by
-  simp
-  constructor
-  exact fun a ↦ Even.add_one a
-  intro hodd
-  rw [<-add_sub_cancel_right (a := z) (b := 1)]
-  apply Odd.add_odd hodd
   simp
 
 -- cool!!!
@@ -2473,6 +2484,7 @@ lemma rne_abs_correct (x : ℝ) :
   simp; left
   rw [add_assoc, add_comm 1, <-add_assoc]
   expose_names
+  simp
   exact h_1.1
   simp
   exfalso
@@ -2521,7 +2533,7 @@ lemma rne_abs_correct (x : ℝ) :
   simp [vnum, h] at h_3
   rw [abs_of_nonneg (by rw [Int.floor_nonneg]; simp)] at h_3
   rw [even_odd_1]
-  rw [<-Decidable.imp_iff_not_or]; exact h_1
+  rw [<-Decidable.imp_iff_not_or]; simp; exact h_1
   split
   simp
   expose_names
@@ -2538,19 +2550,19 @@ lemma rne_abs_correct (x : ℝ) :
   simp at h_1
   simp
   rw [even_odd_1]
-  rw [<-Decidable.imp_iff_not_or]; exact h_1
+  rw [<-Decidable.imp_iff_not_or]; simp; exact h_1
   -- p ≠ 1!!!!!
   have divide : 2 ∣ (@vnum 2 format : ℤ) := by
     simp [vnum]
-    rw [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
-    simp
-    apply precpos
+    left
+    apply ne_of_gt
+    simp [format.precpos]
   have vnumdiv2 : (@vnum 2 format : ℤ)/ 2 = 2^(format.precision-1) := by
     simp [vnum]
     rewrite (occs := .pos [1]) [<-Nat.sub_add_cancel (n := format.precision) (m := 1), pow_add]
     simp
-    apply precpos
-  have := @precpos format
+    exact format.precpos
+  have := format.precpos
   split
   split
   split

@@ -1,5 +1,5 @@
-import Flops.RoundOp
-import Flops.Sterbenz
+import Flops.Core.RoundOp
+import Flops.Core.Sterbenz
 import Flops.P3109.Defs
 import Flops.P3109.MinMax
 
@@ -193,7 +193,7 @@ lemma rto_mantissa_simp (x : ℝ) :
   have : m = ⌊m⌋ := by unfold Int.fract at heq; linarith
   rw [this]; simp
 
-lemma sa_mantissa_simp (N:ℕ) (R:ℕ) (h : 0 < R ∧ R < 2^N) (x : ℝ) :
+lemma sa_mantissa_simp (N:ℕ) (R:ℕ) (h : 0 ≤ R ∧ R < 2^N) (x : ℝ) :
   ¬x = 0 →
   let E := max (Int.log 2 |x|) (1-f.bias) - f.P + 1;
   let S := |x| * 2^(-E);
@@ -238,7 +238,7 @@ lemma sa_mantissa_simp (N:ℕ) (R:ℕ) (h : 0 < R ∧ R < 2^N) (x : ℝ) :
   split; simp; simp
 
 
-lemma sb_mantissa_simp (N:ℕ) (R:ℕ) (h : 0 < R ∧ R < 2^N) (x : ℝ) :
+lemma sb_mantissa_simp (N:ℕ) (R:ℕ) (h : 0 ≤ R ∧ R < 2^N) (x : ℝ) :
   ¬x = 0 →
   let E := max (Int.log 2 |x|) (1-f.bias) - f.P + 1;
   let S := |x| * 2^(-E);
@@ -282,7 +282,7 @@ lemma sb_mantissa_simp (N:ℕ) (R:ℕ) (h : 0 < R ∧ R < 2^N) (x : ℝ) :
   simp [hmpos]
   split; simp; simp
 
-lemma sc_mantissa_simp (N:ℕ) (R:ℕ) (h : 0 < R ∧ R < 2^N) (x : ℝ) :
+lemma sc_mantissa_simp (N:ℕ) (R:ℕ) (h : 0 ≤ R ∧ R < 2^N) (x : ℝ) :
   ¬x = 0 →
   let E := max (Int.log 2 |x|) (1-f.bias) - f.P + 1;
   let S := |x| * 2^(-E);
@@ -379,7 +379,6 @@ lemma rne_mantissa_simp (x : ℝ) :
     rw [if_neg (by omega)]
     expose_names
     have ⟨_, hodd⟩ := h_1
-    simp [Int.even_add_one] at hodd
     rw [abs_of_pos hmlt]
     rw [if_pos hodd]
     exfalso; expose_names; apply h_2 h_1.1
@@ -393,7 +392,6 @@ lemma rne_mantissa_simp (x : ℝ) :
     split; exfalso
     apply hand; right; expose_names
     simp [h_1]
-    rw [Int.even_add_one]; simp
     rw [abs_of_pos hmlt] at h_2; exact h_2
     rw [abs_of_pos hmlt]
     simp [round]; simp at hand

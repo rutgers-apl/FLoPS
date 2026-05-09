@@ -1,6 +1,6 @@
 import Flops.P3109.Rounding
 import Flops.P3109.Projection
-import Flops.Fast2SumOp
+import Flops.Core.Fast2SumOp
 import Flops.P3109.Fast2SumAux
 import Flops.P3109.Fast2SumSat
 import Flops.P3109.RoundingError
@@ -10,22 +10,26 @@ import Mathlib.Data.Multiset.Basic
 namespace p3109_format
 namespace p3109
 
+variable {f : p3109_format}
+variable (domain_sat_consistent : ∀ (sat : SaturationMode), f.d = .finite → ¬sat = .SatFinite → False)
+include domain_sat_consistent
+
 noncomputable def plus (a b : p3109 f) (rnd : RoundingMode) (sat : SaturationMode) :=
-  @project f (a + b : EReal) rnd sat
+  @project f domain_sat_consistent (a + b : EReal) rnd sat
 
 noncomputable def minus (a b : p3109 f) (rnd : RoundingMode) (sat : SaturationMode) :=
-  @project f (a - b : EReal) rnd sat
+  @project f domain_sat_consistent (a - b : EReal) rnd sat
 
 noncomputable def fast2sum (a b : p3109 f)
   (rnd1 rnd2 rnd3 : RoundingMode)
   (sat1 sat2 sat3 : SaturationMode) :=
-  let s := @plus f a b rnd1 sat1;
-  let z := @minus f s a rnd2 sat2;
-  let t := @minus f b z rnd3 sat3;
+  let s := @plus f domain_sat_consistent a b rnd1 sat1;
+  let z := @minus f domain_sat_consistent s a rnd2 sat2;
+  let t := @minus f domain_sat_consistent b z rnd3 sat3;
   (s, t)
 
 lemma project_real_neg_inf_signed (x : ℝ) {rnd : RoundingMode} {sat : SaturationMode} :
-  (@project f x rnd sat:EReal) = ⊥ →
+  (@project f domain_sat_consistent x rnd sat:EReal) = ⊥ →
   f.s = .signed := by
   intro hp
   simp [project] at hp
@@ -35,17 +39,17 @@ lemma project_real_neg_inf_signed (x : ℝ) {rnd : RoundingMode} {sat : Saturati
     cases heq:satres <;> rw [heq] at hsat
     simp_rw [heq] at hp
     simp_rw [<-lift_some_some_ereal] at hp
-    simp [encode, encode_aux] at hp
+    simp [encode] at hp
     split at hp <;> simp [to_ereal] at hp
     norm_cast at hp
     exfalso
     simp_rw [heq] at hp
-    simp [encode, encode_aux] at hp
+    simp [encode] at hp
     simp [to_ereal] at hp
   apply saturate_bot_signed _ _ _ this
 
 lemma project_real_inf_ovfinf (x : ℝ) {rnd : RoundingMode} {sat : SaturationMode} :
-  (@project f x rnd sat:EReal) = ⊤ ∨ (@project f x rnd sat:EReal) = ⊥ →
+  (@project f domain_sat_consistent x rnd sat:EReal) = ⊤ ∨ (@project f domain_sat_consistent x rnd sat:EReal) = ⊥ →
   sat = .OvfInf ∧ f.d = .extended := by
   simp [project]
   simp_rw [round_to_precision_eq_simp]
@@ -59,8 +63,7 @@ lemma project_real_inf_ovfinf (x : ℝ) {rnd : RoundingMode} {sat : SaturationMo
   have : satres = ⊤ ∨ satres = ⊥ := by
     by_contra hsatreal
     simp at hsatreal
-    simp [encode, encode_aux] at hext
-    unfold encode_ret.a at hext
+    simp [encode] at hext
     split at hext
     expose_names
     simp at heq; rw [lift_none_bot] at heq
@@ -122,18 +125,18 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   b.exp ≤ a.exp →
   a.is_finite →
   b.is_finite →
-  match @fast2sum f a b rnd1 rnd2 rnd3 sat sat sat with
+  match @fast2sum f domain_sat_consistent a b rnd1 rnd2 rnd3 sat sat sat with
   |(s, t) =>
     t ∈ ({
-      @project f (a + b - s : EReal) .RD sat,
-      @project f (a + b - s : EReal) .RU sat} : Multiset (p3109 f)) := by
+      @project f domain_sat_consistent (a + b - s : EReal) .RD sat,
+      @project f domain_sat_consistent (a + b - s : EReal) .RU sat} : Multiset (p3109 f)) := by
   rcases heqa:a with _|_|⟨_, _, _, _⟩ <;> rcases heqb:b with _|_|⟨_, _, _, _⟩ <;> simp [is_finite]
   have hfina : a.is_finite := by simp [heqa, is_finite]
   have hfinb : b.is_finite := by simp [heqb, is_finite]
   simp [fast2sum, <-heqa, <-heqb]
-  set s := @plus f a b rnd1 sat with hs
-  set z := @minus f s a rnd2 sat with hz
-  set t := @minus f b z rnd3 sat with ht
+  set s := @plus f domain_sat_consistent a b rnd1 sat with hs
+  set z := @minus f domain_sat_consistent s a rnd2 sat with hz
+  set t := @minus f domain_sat_consistent b z rnd3 sat with ht
   intro hsigned hexple
   simp [exp, heqa, heqb] at hexple
   simp [plus] at hs
@@ -146,7 +149,7 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   rcases (a+b:ℝ).decidableLE Ω with hovf|hle1
   -- overflow, sat to max or overflow
   simp at hovf
-  have := @x_overflow_project_max_or_top f rnd1 sat (a+b) hovf
+  have := @x_overflow_project_max_or_top f domain_sat_consistent rnd1 sat (a+b) hovf
   simp at this; norm_cast at this
   rw [<-hs] at this
   rcases this with heq|heq
@@ -155,7 +158,7 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   simp [heq] at hz ⊢
   rw [finite_to_ereal_eq _ (@max_is_finite f)] at hz ⊢
   norm_cast at hz
-  have := @project_in_bound_eq_round f (@max_finite f - a:ℝ) rnd2 sat
+  have := @project_in_bound_eq_round f domain_sat_consistent (@max_finite f - a:ℝ) rnd2 sat
     (by
       rw [finite_to_ereal_eq _ (@max_is_finite f)]
       rw [finite_to_ereal_eq _ (@min_is_finite f)]
@@ -183,15 +186,15 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   have : (b.to_real - ((@max_finite f).to_real - a.to_real)) = a+b-@max_finite f:= by linarith
   rw [this] at ht
   rw [ht]
-  have := @project_faithful f (a+b-@max_finite f) rnd3 sat
+  have := @project_faithful f domain_sat_consistent (a+b-@max_finite f) rnd3 sat
   simp at this; exact this
   --
   simp [heq] at ⊢ hz
-  have hsat := @project_real_inf_ovfinf f (a+b) rnd1 sat (by rw [<-hs, heq]; simp)
+  have hsat := @project_real_inf_ovfinf f domain_sat_consistent (a+b) rnd1 sat (by rw [<-hs, heq]; simp)
   simp [project, round_to_precision] at hz
   unfold saturate at hz
   simp [hsat] at hz
-  simp [encode, encode_aux] at hz
+  simp [encode] at hz
   simp [hz, to_ereal] at ht
   simp [ht]
   simp [project, round_to_precision]
@@ -202,7 +205,7 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   rcases (a+b:ℝ).decidableLT (-Ω) with hle2|hovf
   simp at hle2
   -- no overflow, so z and t no overflow also
-  have := @project_in_bound_eq_round f (a+b:ℝ) rnd1 sat (by
+  have := @project_in_bound_eq_round f domain_sat_consistent (a+b:ℝ) rnd1 sat (by
     rw [finite_to_ereal_eq _ (@max_is_finite f), finite_to_ereal_eq _ (@min_is_finite f), min_0_or_neg_max hsigned, <-hmax]
     norm_cast)
   simp [hs] at hz
@@ -212,7 +215,7 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   rw [hs, this]
   norm_cast at hz
   -- FIXME: missing the minimum case
-  have := @project_in_bound_eq_round f (@round_to_fp f rnd1 (a+b)-a:ℝ) rnd2 sat (by
+  have := @project_in_bound_eq_round f domain_sat_consistent (@round_to_fp f rnd1 (a+b)-a:ℝ) rnd2 sat (by
     have := @fast2sum_immune_to_overflow f a.to_float b.to_float rnd1 hsigned
       (by simp [heqa, to_float]; assumption)
       (by simp [heqb, to_float]; assumption)
@@ -234,19 +237,19 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   rw [round_to_precision_eq_simp, round_to_precision_eq, round_to_fp_eq] at ht
   norm_cast at ht
   rw [this] at ht
-  have := @project_faithful f (a+b-@round_to_fp f rnd1 (a+b)) rnd3 sat
+  have := @project_faithful f domain_sat_consistent (a+b-@round_to_fp f rnd1 (a+b)) rnd3 sat
   simp at this
   have heq : (b:ℝ)-(@round_to_fp f rnd1 (a+b)-a)=a+b-@round_to_fp f rnd1 (a+b):= by linarith
   rw [heq] at ht
   rw [ht]
   simp [this]
   -- overflow to ⊥
-  have := @x_overflow_project_min_or_bot f rnd1 sat (a+b) hsigned
+  have := @x_overflow_project_min_or_bot f domain_sat_consistent rnd1 sat (a+b) hsigned
     (by rw [min_0_or_neg_max hsigned]; linarith)
   simp at this
   rcases this with heq|heq
   norm_cast at heq
-  have := @project_in_bound_eq_round f (@min_finite f - a:ℝ) rnd2 sat
+  have := @project_in_bound_eq_round f domain_sat_consistent (@min_finite f - a:ℝ) rnd2 sat
     (by
       rw [finite_to_ereal_eq _ (@max_is_finite f)]
       rw [finite_to_ereal_eq _ (@min_is_finite f)]
@@ -278,44 +281,46 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   rw [this] at ht
   norm_cast at ht ⊢
   rw [sub_sub_eq_add_sub, add_comm] at ht
-  have := @project_faithful f (a+b-@min_finite f) rnd3 sat
+  have := @project_faithful f domain_sat_consistent (a+b-@min_finite f) rnd3 sat
   simp at this
   simp [ht, this]
   norm_cast at heq
-  have hsat := @project_real_inf_ovfinf f (a+b) rnd1 sat (by rw [heq]; simp)
-  have hsigned := @project_real_neg_inf_signed f (a+b) rnd1 sat  (by rw [heq])
+  have hsat := @project_real_inf_ovfinf f domain_sat_consistent (a+b) rnd1 sat (by rw [heq]; simp)
+  have hsigned := @project_real_neg_inf_signed f domain_sat_consistent (a+b) rnd1 sat  (by rw [heq])
   rw [hs, heq, hsat.1] at hz ⊢
   simp [project, round_to_precision] at hz ⊢
   unfold saturate at hz ⊢
   simp_rw [finite_to_ereal_eq _ (@max_is_finite f)] at hz ⊢
   simp_rw [finite_to_ereal_eq _ (@min_is_finite f)] at hz ⊢
   simp [hsat, hsigned] at hz ⊢
-  simp [encode, encode_aux] at hz ⊢
+  simp [encode] at hz ⊢
   simp [hsat, hz, to_ereal] at ht
   simp [project, round_to_precision] at ht
   unfold saturate at ht
   simp_rw [finite_to_ereal_eq _ (@max_is_finite f)] at ht
   simp_rw [finite_to_ereal_eq _ (@min_is_finite f)] at ht
   simp [hsat] at ht
-  simp [encode, encode_aux] at ht
+  simp [encode] at ht
   simp [ht]
 
+omit domain_sat_consistent in
 lemma fast2sum_rne_error_exact {f : p3109_format} {a b : p3109 f}
+  (domain_sat_consistent : ∀ (sat : SaturationMode), f.d = .finite → ¬sat = .SatFinite → False)
   (rnd2 rnd3 : RoundingMode) (sat1 sat2 sat3 : SaturationMode) :
   f.s = .signed →
   b.exp ≤ a.exp →
   |(a+b:ℝ)| ≤ @max_finite f →
   a.is_finite →
   b.is_finite →
-  match @fast2sum f a b .RNE rnd2 rnd3 sat1 sat2 sat3 with
+  match @fast2sum f domain_sat_consistent a b .RNE rnd2 rnd3 sat1 sat2 sat3 with
   |(s, t) => (t:ℝ)=a+b-s := by
   rcases heqa:a with _|_|⟨_, _, _, _⟩ <;> rcases heqb:b with _|_|⟨_, _, _, _⟩ <;> simp [is_finite]
   have hfina : a.is_finite := by simp [heqa, is_finite]
   have hfinb : b.is_finite := by simp [heqb, is_finite]
   simp [fast2sum, <-heqa, <-heqb]
-  set s := @plus f a b .RNE sat1 with hs
-  set z := @minus f s a rnd2 sat2 with hz
-  set t := @minus f b z rnd3 sat3 with ht
+  set s := @plus f domain_sat_consistent a b .RNE sat1 with hs
+  set z := @minus f domain_sat_consistent s a rnd2 sat2 with hz
+  set t := @minus f domain_sat_consistent b z rnd3 sat3 with ht
   intro hsigned hexple hnoovf
   simp [exp, heqa, heqb] at hexple
   simp [plus] at hs
@@ -330,13 +335,13 @@ lemma fast2sum_rne_error_exact {f : p3109_format} {a b : p3109 f}
     (by simp [to_float, heqb]; apply canonical_fp_of_canonical_p3109; assumption)
     (by simp [to_float, heqa, heqb]; assumption)
   simp [fast2sum_op, to_float_eq] at this
-  rw [hs, project_real_in_bound_eq_round _ _ _ (by
+  rw [hs, project_real_in_bound_eq_round _ _ _ _ (by
     rw [min_0_or_neg_max hsigned, <-abs_le]; assumption)]
   simp [round_to_precision_generic, rne_abs]
   rw [<-this]
   simp [ht, hz, hs]
 
-  rw [project_in_bound_eq_round _ .RNE _ (by
+  rw [project_in_bound_eq_round _ _ .RNE _ (by
     norm_cast
     rw [finite_to_ereal_eq _ (by apply min_is_finite)]
     rw [finite_to_ereal_eq _ (by apply max_is_finite)]
@@ -354,7 +359,7 @@ lemma fast2sum_rne_error_exact {f : p3109_format} {a b : p3109 f}
     (by simp [to_float_eq]; assumption)
   simp [round_to_fp, rne_abs, to_float_eq] at hz_noovf
   rw [<-hz'] at hz_noovf
-  rw [project_in_bound_eq_round _ _ _ (by
+  rw [project_in_bound_eq_round _ _ _ _ (by
     rw [finite_to_ereal_eq _ (by apply min_is_finite)]
     rw [finite_to_ereal_eq _ (by apply max_is_finite)]
     norm_cast
