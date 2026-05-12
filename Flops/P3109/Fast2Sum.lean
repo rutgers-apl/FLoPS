@@ -48,9 +48,9 @@ lemma project_real_neg_inf_signed (x : ℝ) {rnd : RoundingMode} {sat : Saturati
     simp [to_ereal] at hp
   apply saturate_bot_signed _ _ _ this
 
-lemma project_real_inf_ovfinf (x : ℝ) {rnd : RoundingMode} {sat : SaturationMode} :
+lemma project_real_inf_SatInf (x : ℝ) {rnd : RoundingMode} {sat : SaturationMode} :
   (@project f domain_sat_consistent x rnd sat:EReal) = ⊤ ∨ (@project f domain_sat_consistent x rnd sat:EReal) = ⊥ →
-  sat = .OvfInf ∧ f.d = .extended := by
+  sat = .SatInf ∧ f.d = .extended := by
   simp [project]
   simp_rw [round_to_precision_eq_simp]
   simp_rw [round_to_precision_eq]
@@ -190,7 +190,7 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   simp at this; exact this
   --
   simp [heq] at ⊢ hz
-  have hsat := @project_real_inf_ovfinf f domain_sat_consistent (a+b) rnd1 sat (by rw [<-hs, heq]; simp)
+  have hsat := @project_real_inf_SatInf f domain_sat_consistent (a+b) rnd1 sat (by rw [<-hs, heq]; simp)
   simp [project, round_to_precision] at hz
   unfold saturate at hz
   simp [hsat] at hz
@@ -285,7 +285,7 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   simp at this
   simp [ht, this]
   norm_cast at heq
-  have hsat := @project_real_inf_ovfinf f domain_sat_consistent (a+b) rnd1 sat (by rw [heq]; simp)
+  have hsat := @project_real_inf_SatInf f domain_sat_consistent (a+b) rnd1 sat (by rw [heq]; simp)
   have hsigned := @project_real_neg_inf_signed f domain_sat_consistent (a+b) rnd1 sat  (by rw [heq])
   rw [hs, heq, hsat.1] at hz ⊢
   simp [project, round_to_precision] at hz ⊢

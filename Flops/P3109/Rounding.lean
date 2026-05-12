@@ -14,7 +14,7 @@ inductive RoundingMode where
   |StochasticC (N:ℕ) (R:ℕ) (h : 0 ≤ R ∧ R < 2^N)
 
 inductive SaturationMode where
-  |SatFinite|SatPropagate|OvfInf
+  |SatFinite|SatPropagate|SatInf
 
 variable {f : p3109_format}
 
@@ -346,11 +346,11 @@ noncomputable def saturate (x : EReal) (sat : SaturationMode) (rnd : RoundingMod
   |.SatPropagate, _, ⊥, .signed, .extended => ⊥
   |.SatPropagate, _, ⊥, _, _ => @min_finite f
   |.SatPropagate, _, _, _, _ => if x < @min_finite f then @min_finite f else @max_finite f
-  |.OvfInf, _, ⊤, _, .extended => ⊤
-  |.OvfInf, _, ⊤, _, _ => @max_finite f
-  |.OvfInf, _, ⊥, .signed, .extended => ⊥
-  |.OvfInf, _, ⊥, _, _ => @min_finite f
-  |.OvfInf, _, _, _, _ =>
+  |.SatInf, _, ⊤, _, .extended => ⊤
+  |.SatInf, _, ⊤, _, _ => @max_finite f
+  |.SatInf, _, ⊥, .signed, .extended => ⊥
+  |.SatInf, _, ⊥, _, _ => @min_finite f
+  |.SatInf, _, _, _, _ =>
     if x < @min_finite f then
     match rnd with
     |.RZ
