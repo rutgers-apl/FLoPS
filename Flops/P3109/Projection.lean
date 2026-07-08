@@ -11,8 +11,8 @@ namespace p3109
 
 noncomputable def project (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :=
   let R := @round_to_precision f x rnd;
-  let S := @saturate f R sat rnd;
-  let e := @encode f (Sum.inl S) (@in_value_set f domain_sat_consistent x rnd sat);
+  let S := @saturateC f R sat rnd;
+  let e := @encode f S (@in_value_set f domain_sat_consistent x rnd sat);
   e
 
 omit domain_sat_consistent in

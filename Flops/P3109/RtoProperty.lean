@@ -14,7 +14,7 @@
      may be even. This happens precisely when:
      - Format is signed extended with P > 1: max significand = 2^P - 2 (even)
      - Format is unsigned finite with P > 1: max significand = 2^P - 2 (even)
-     All saturation modes (SatFinite, SatPropagate, SatInf with finite domain)
+     All saturation modes (SatFinite, SatPropagate, SatNone with finite domain)
      can produce this clip.
 
   2. **Saturation to min_finite with even significand** (overflow to -∞ / negative
@@ -35,7 +35,7 @@
     saturation to max/min_finite.
 
   - **Unsigned extended format**: max significand is odd (2^P - 3 for P ≥ 3,
-    or 2^P - 1 for P ≤ 2). Combined with SatInf (overflow → ⊤),
+    or 2^P - 1 for P ≤ 2). Combined with SatNone (overflow → ⊤),
     the property holds for most configurations.
 
   The parity characterizations are proved in `RtoParity.lean`.

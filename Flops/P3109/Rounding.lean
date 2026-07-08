@@ -14,7 +14,7 @@ inductive RoundingMode where
   |StochasticC (N:ℕ) (R:ℕ) (h : 0 ≤ R ∧ R < 2^N)
 
 inductive SaturationMode where
-  |SatFinite|SatPropagate|SatInf
+  |SatFinite|SatPropagate|SatNone
 
 variable {f : p3109_format}
 
@@ -346,11 +346,11 @@ noncomputable def saturate (x : EReal) (sat : SaturationMode) (rnd : RoundingMod
   |.SatPropagate, _, ⊥, .signed, .extended => ⊥
   |.SatPropagate, _, ⊥, _, _ => @min_finite f
   |.SatPropagate, _, _, _, _ => if x < @min_finite f then @min_finite f else @max_finite f
-  |.SatInf, _, ⊤, _, .extended => ⊤
-  |.SatInf, _, ⊤, _, _ => @max_finite f
-  |.SatInf, _, ⊥, .signed, .extended => ⊥
-  |.SatInf, _, ⊥, _, _ => @min_finite f
-  |.SatInf, _, _, _, _ =>
+  |.SatNone, _, ⊤, _, .extended => ⊤
+  |.SatNone, _, ⊤, _, _ => @max_finite f
+  |.SatNone, _, ⊥, .signed, .extended => ⊥
+  |.SatNone, _, ⊥, _, _ => @min_finite f
+  |.SatNone, _, _, _, _ =>
     if x < @min_finite f then
     match rnd with
     |.RZ
@@ -365,6 +365,27 @@ noncomputable def saturate (x : EReal) (sat : SaturationMode) (rnd : RoundingMod
     |_ => match f.d with
       |.extended => ⊤
       |.finite => @max_finite f
+
+def satNoneNaNCase (x : EReal) (rnd : RoundingMode) : Prop :=
+  (f.d = .finite ∧
+    (x = ⊤ ∨
+      x = ⊥ ∨
+      (x < @min_finite f ∧ x ≠ ⊥ ∧ rnd ≠ .RU ∧ rnd ≠ .RZ) ∨
+      (@max_finite f < x ∧ x ≠ ⊤ ∧ rnd ≠ .RD ∧ rnd ≠ .RZ))) ∨
+  (f.s = .unsigned ∧ f.d = .extended ∧
+    (x = ⊥ ∨
+      (x < @min_finite f ∧ x ≠ ⊥ ∧ rnd ≠ .RU ∧ rnd ≠ .RZ)))
+
+def satNoneUnsignedRtoMaxClipCase (x : EReal) (rnd : RoundingMode) : Prop :=
+  rnd = .RTO ∧ f.s = .unsigned ∧ f.d = .extended ∧ @max_finite f < x ∧ x ≠ ⊤
+
+noncomputable def saturateC (x : EReal) (sat : SaturationMode) (rnd : RoundingMode) : CReal :=
+  if sat = .SatNone ∧ @satNoneNaNCase f x rnd then
+    Sum.inr ()
+  else if sat = .SatNone ∧ @satNoneUnsignedRtoMaxClipCase f x rnd then
+    Sum.inl (@max_finite f)
+  else
+    Sum.inl (@saturate f x sat rnd)
 
 namespace p3109
 
@@ -900,7 +921,7 @@ lemma saturate_bot_signed (x : EReal) (rnd : RoundingMode) (sat : SaturationMode
 
 -- need this proof because encode demands the EReal is in the value set of P3109
 -- remember value_set returns EReal ⊕ Unit
-noncomputable def in_value_set
+noncomputable def in_value_set_ereal
   (domain_sat_consistent : ∀ (sat : SaturationMode), f.d = .finite → ¬sat = .SatFinite → False)
   (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
   let R := @round_to_precision f x rnd;
@@ -946,3 +967,21 @@ noncomputable def in_value_set
       simp [_root_.to_real]
     simp [heq, <-this, hy, to_real, to_cereal]
     simp [hs, hr]
+
+noncomputable def in_value_set
+  (domain_sat_consistent : ∀ (sat : SaturationMode), f.d = .finite → ¬sat = .SatFinite → False)
+  (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
+  let R := @round_to_precision f x rnd;
+  let S := @saturateC f R sat rnd;
+  S ∈ value_set f := by
+    simp [saturateC]
+    by_cases hnan : sat = .SatNone ∧ @satNoneNaNCase f (@round_to_precision f x rnd) rnd
+    · simp [hnan, value_set]
+      exists (.p3109_nan : p3109 f)
+      simp [to_cereal]
+    · by_cases hclip : sat = .SatNone ∧ @satNoneUnsignedRtoMaxClipCase f (@round_to_precision f x rnd) rnd
+      · simp [hnan, hclip, value_set]
+        exists (@max_finite f)
+        simp [to_cereal]
+      · simpa [hnan, hclip, saturateC] using
+          (@in_value_set_ereal f domain_sat_consistent x rnd sat)
