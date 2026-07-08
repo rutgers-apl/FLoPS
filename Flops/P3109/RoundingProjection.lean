@@ -118,8 +118,8 @@ lemma round_to_precision_RNA_nearest (x : ℝ) :
   (never produces ⊤). -/
 lemma saturate_overflow_RD (v : ℝ) (sat : SaturationMode)
   (hv : @max_finite f < (v : EReal)) :
-  @saturate f v sat .RD = @max_finite f := by
-    unfold saturate;
+  @saturateEReal f v sat .RD = @max_finite f := by
+    unfold saturateEReal;
     split_ifs <;> norm_cast at *;
     · grind;
     · have h_min_le_max : ∀ x : p3109 f, x.is_finite → (x : ℝ) ≤ @max_finite f := by
@@ -140,11 +140,11 @@ lemma saturate_overflow_RD (v : ℝ) (sat : SaturationMode)
   (never produces ⊥). -/
 lemma saturate_underflow_RU (v : ℝ) (sat : SaturationMode)
   (hv : (v : EReal) < @min_finite f) :
-  @saturate f v sat .RU = @min_finite f := by
+  @saturateEReal f v sat .RU = @min_finite f := by
     contrapose! hv
     apply Classical.byContradiction
     intro h_contra
-    unfold saturate at hv
+    unfold saturateEReal at hv
     split_ifs at hv
     · tauto
     · cases sat <;> cases f.s <;> cases f.d <;> tauto
@@ -153,9 +153,9 @@ lemma saturate_underflow_RU (v : ℝ) (sat : SaturationMode)
 /-- Saturate with RZ clips overflow to max_finite. -/
 lemma saturate_overflow_RZ (v : ℝ) (sat : SaturationMode)
   (hv : @max_finite f < (v : EReal)) :
-  @saturate f v sat .RZ = @max_finite f := by
+  @saturateEReal f v sat .RZ = @max_finite f := by
     contrapose! hv
-    unfold saturate at hv
+    unfold saturateEReal at hv
     split_ifs at hv <;> norm_cast at hv
     · tauto
     · refine' le_trans _ ( show ( min_finite.to_ereal : EReal ) ≤ max_finite.to_ereal from _ )
@@ -176,8 +176,8 @@ lemma saturate_overflow_RZ (v : ℝ) (sat : SaturationMode)
 /-- Saturate with RZ clips underflow to min_finite. -/
 lemma saturate_underflow_RZ (v : ℝ) (sat : SaturationMode)
   (hv : (v : EReal) < @min_finite f) :
-  @saturate f v sat .RZ = @min_finite f := by
-    unfold saturate
+  @saturateEReal f v sat .RZ = @min_finite f := by
+    unfold saturateEReal
     cases sat <;> cases f.s <;> cases f.d <;> simp +decide [ hv ]
     all_goals split_ifs <;> try exact absurd ‹_› ( not_and_of_not_right _ hv.not_ge )
     all_goals cases v ; trivial
@@ -187,7 +187,7 @@ lemma saturate_underflow_RZ (v : ℝ) (sat : SaturationMode)
 /-- For x ≥ min_finite, the saturated RD result is ≤ x. -/
 lemma saturate_round_RD_le (x : ℝ) (sat : SaturationMode)
   (hx : @min_finite f ≤ x) :
-  @saturate f (@round_to_precision f x .RD) sat .RD ≤ (x : EReal) := by
+  @saturateEReal f (@round_to_precision f x .RD) sat .RD ≤ (x : EReal) := by
   have hrd_le : @round_to_precision_real f x .RD ≤ x := by
     simp [round_to_precision_eq, round_to_precision_generic]
     exact (@rounddown_real_rounddown (format := f.to_format) x).2.1
@@ -212,7 +212,7 @@ lemma saturate_round_RD_le (x : ℝ) (sat : SaturationMode)
 /-- For x ≤ max_finite, the saturated RU result is ≥ x. -/
 lemma saturate_round_RU_ge (x : ℝ) (sat : SaturationMode)
   (hx : x ≤ @max_finite f) :
-  (x : EReal) ≤ @saturate f (@round_to_precision f x .RU) sat .RU := by
+  (x : EReal) ≤ @saturateEReal f (@round_to_precision f x .RU) sat .RU := by
   have hru_ge : x ≤ @round_to_precision_real f x .RU := by
     simp [round_to_precision_eq, round_to_precision_generic]
     exact (@roundup_real_roundup (format := f.to_format) x).2.1
@@ -238,14 +238,14 @@ lemma saturate_round_RU_ge (x : ℝ) (sat : SaturationMode)
 For nonneg x, the saturated RZ result is ≤ x.
 -/
 lemma saturate_round_RZ_le_of_nonneg (x : ℝ) (sat : SaturationMode)
-    (hx : 0 ≤ x) :
-    @saturate f (@round_to_precision f x .RZ) sat .RZ ≤ (x : EReal) := by
+  (hx : 0 ≤ x) :
+    @saturateEReal f (@round_to_precision f x .RZ) sat .RZ ≤ (x : EReal) := by
       -- By definition of saturation, we know that if the round result is within the bounds, then the saturate function returns the round result.
       by_cases h_bounds : @min_finite f ≤ @round_to_precision f x RoundingMode.RZ ∧ @round_to_precision f x RoundingMode.RZ ≤ @max_finite f;
       · convert round_to_precision_RZ_le_of_nonneg ( x : EReal ) ( by aesop ) using 1;
         exact saturate_eq _ _ _ |>.1 h_bounds.1 h_bounds.2;
       · by_cases h_max : @max_finite f < @round_to_precision f x RoundingMode.RZ;
-        · have h_max_finite : @saturate f (@round_to_precision f x RoundingMode.RZ) sat RoundingMode.RZ = @max_finite f := by
+        · have h_max_finite : @saturateEReal f (@round_to_precision f x RoundingMode.RZ) sat RoundingMode.RZ = @max_finite f := by
             apply saturate_overflow_RZ; assumption;
           have h_max_finite_le_x : @round_to_precision f x RoundingMode.RZ ≤ x := by
             apply round_to_precision_RZ_le_of_nonneg;
@@ -277,8 +277,8 @@ lemma saturate_round_RZ_le_of_nonneg (x : ℝ) (sat : SaturationMode)
 For nonpos x, the saturated RZ result is ≥ x.
 -/
 lemma saturate_round_RZ_ge_of_nonpos (x : ℝ) (sat : SaturationMode)
-    (hx : x ≤ 0) :
-    (x : EReal) ≤ @saturate f (@round_to_precision f x .RZ) sat .RZ := by
+  (hx : x ≤ 0) :
+    (x : EReal) ≤ @saturateEReal f (@round_to_precision f x .RZ) sat .RZ := by
       have h_round_le : @round_to_precision f x RoundingMode.RZ ≥ (x : EReal) := by
         -- Apply the lemma that states the round_to_precision of x with RoundingMode.RZ is greater than or equal to x when x is non-positive.
         apply round_to_precision_RZ_ge_of_nonpos; exact_mod_cast hx
@@ -340,7 +340,7 @@ include domain_sat_consistent
 /-- The EReal value of `project x rnd sat` equals the saturate result. -/
 lemma project_ereal_eq_saturate (x : ℝ) (rnd : RoundingMode) (sat : SaturationMode) :
     (@project f domain_sat_consistent (↑x) rnd sat : EReal) =
-    @saturate f (@round_to_precision f (↑x) rnd) sat rnd := by
+    @saturateEReal f (@round_to_precision f (↑x) rnd) sat rnd := by
   simp only [project]
   exact encode_to_ereal _ _
 
@@ -403,7 +403,7 @@ lemma project_finite_underflow_real {rnd : RoundingMode} {sat : SaturationMode}
     {x : ℝ} (hx : x < @min_finite f)
     (hfin : (@project f domain_sat_consistent (↑x) rnd sat).is_finite) :
     (@project f domain_sat_consistent (↑x) rnd sat : ℝ) = @min_finite f := by
-      have h_saturate : @saturate f (@round_to_precision f (↑x) rnd) sat rnd = @min_finite f := by
+      have h_saturate : @saturateEReal f (@round_to_precision f (↑x) rnd) sat rnd = @min_finite f := by
         have h_saturate : @round_to_precision f (↑x) rnd ≤ @min_finite f := by
           have h_round_le : (@round_to_fp f rnd x : ℝ) ≤ @min_finite f := by
             have h_round_le : (@round_to_fp f rnd x : ℝ) ≤ @min_fp f := by
@@ -427,7 +427,7 @@ lemma project_finite_underflow_real {rnd : RoundingMode} {sat : SaturationMode}
             have hfin1 := @min_is_finite f
             rw [finite_to_ereal_eq _ hfin1, finite_to_ereal_eq _ max_is_finite]
             exact EReal.coe_le_coe_iff.mpr h)
-      have h_project : @project f domain_sat_consistent (↑x) rnd sat = @saturate f (@round_to_precision f (↑x) rnd) sat rnd := by
+      have h_project : @project f domain_sat_consistent (↑x) rnd sat = @saturateEReal f (@round_to_precision f (↑x) rnd) sat rnd := by
         apply_rules [ project_ereal_eq_saturate ];
       grind +suggestions
 

@@ -33,7 +33,7 @@ lemma project_real_neg_inf_signed (x : ℝ) {rnd : RoundingMode} {sat : Saturati
   f.s = .signed := by
   intro hp
   simp [project] at hp
-  set satres := @saturate f (@round_to_precision f x rnd) sat rnd with hsat
+  set satres := @saturateEReal f (@round_to_precision f x rnd) sat rnd with hsat
   simp_rw [<-hsat] at hp
   have : satres = ⊥ := by
     cases heq:satres <;> rw [heq] at hsat
@@ -57,7 +57,7 @@ lemma project_real_inf_SatNone (x : ℝ) {rnd : RoundingMode} {sat : SaturationM
   simp_rw [round_to_fp_eq]
   set round := (@round_to_fp f rnd x : ℝ)with hround
   simp_rw [<-hround]
-  set satres := @saturate f round sat rnd with hsat
+  set satres := @saturateEReal f round sat rnd with hsat
   simp_rw [<-hsat]
   intro hext
   have : satres = ⊤ ∨ satres = ⊥ := by
@@ -80,7 +80,7 @@ lemma project_real_inf_SatNone (x : ℝ) {rnd : RoundingMode} {sat : SaturationM
     apply EReal.top_ne_coe; simp [<-heq]; norm_cast
     apply EReal.bot_ne_coe; simp [<-heq]; norm_cast
     assumption
-  unfold saturate at hsat
+  unfold saturateEReal at hsat
   rw [finite_to_ereal_eq _ (@max_is_finite f), finite_to_ereal_eq _ (@min_is_finite f)] at hsat
   split at hsat; simp [hsat] at this
   split at hsat; split at hsat; simp [hsat] at this; simp [hsat] at this;
@@ -192,15 +192,15 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   simp [heq] at ⊢ hz
   have hsat := @project_real_inf_SatNone f domain_sat_consistent (a+b) rnd1 sat (by rw [<-hs, heq]; simp)
   simp [project, round_to_precision] at hz
-  unfold saturate at hz
+  unfold saturateEReal at hz
   simp [hsat] at hz
   simp [encode] at hz
   simp [hz, to_ereal] at ht
   simp [ht]
   simp [project, round_to_precision]
   cases hs:f.s
-  unfold saturate; simp [hsat, hs]
-  unfold saturate; simp [hsat, hs]
+  unfold saturateEReal; simp [hsat, hs]
+  unfold saturateEReal; simp [hsat, hs]
   --
   rcases (a+b:ℝ).decidableLT (-Ω) with hle2|hovf
   simp at hle2
@@ -289,14 +289,14 @@ lemma fast2sum_error_faithful (a b : p3109 f)
   have hsigned := @project_real_neg_inf_signed f domain_sat_consistent (a+b) rnd1 sat  (by rw [heq])
   rw [hs, heq, hsat.1] at hz ⊢
   simp [project, round_to_precision] at hz ⊢
-  unfold saturate at hz ⊢
+  unfold saturateEReal at hz ⊢
   simp_rw [finite_to_ereal_eq _ (@max_is_finite f)] at hz ⊢
   simp_rw [finite_to_ereal_eq _ (@min_is_finite f)] at hz ⊢
   simp [hsat, hsigned] at hz ⊢
   simp [encode] at hz ⊢
   simp [hsat, hz, to_ereal] at ht
   simp [project, round_to_precision] at ht
-  unfold saturate at ht
+  unfold saturateEReal at ht
   simp_rw [finite_to_ereal_eq _ (@max_is_finite f)] at ht
   simp_rw [finite_to_ereal_eq _ (@min_is_finite f)] at ht
   simp [hsat] at ht

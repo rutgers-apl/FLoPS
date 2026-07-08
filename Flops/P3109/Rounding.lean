@@ -338,7 +338,7 @@ lemma round_to_precision_exists_bounded (x : ℝ) (rnd : RoundingMode) :
   apply canonical_bounded
   apply round_to_fp_canonical
 
-noncomputable def saturate (x : EReal) (sat : SaturationMode) (rnd : RoundingMode) : EReal :=
+noncomputable def saturateEReal (x : EReal) (sat : SaturationMode) (rnd : RoundingMode) : EReal :=
   if x ≤ @max_finite f ∧ @min_finite f ≤ x then x else match sat, rnd, x, f.s, f.d with
   |.SatFinite, _, _, _, _ => if x < @min_finite f then @min_finite f else @max_finite f
   |.SatPropagate, _, ⊤, _, .extended => ⊤
@@ -379,28 +379,28 @@ def satNoneNaNCase (x : EReal) (rnd : RoundingMode) : Prop :=
 def satNoneUnsignedRtoMaxClipCase (x : EReal) (rnd : RoundingMode) : Prop :=
   rnd = .RTO ∧ f.s = .unsigned ∧ f.d = .extended ∧ @max_finite f < x ∧ x ≠ ⊤
 
-noncomputable def saturateC (x : EReal) (sat : SaturationMode) (rnd : RoundingMode) : CReal :=
+noncomputable def saturate (x : EReal) (sat : SaturationMode) (rnd : RoundingMode) : CEReal :=
   if sat = .SatNone ∧ @satNoneNaNCase f x rnd then
     Sum.inr ()
   else if sat = .SatNone ∧ @satNoneUnsignedRtoMaxClipCase f x rnd then
     Sum.inl (@max_finite f)
   else
-    Sum.inl (@saturate f x sat rnd)
+    Sum.inl (@saturateEReal f x sat rnd)
 
 namespace p3109
 
 
 lemma saturate_eq (x : EReal) (sat : SaturationMode) (rnd : RoundingMode) :
-  let s := @saturate f x sat rnd;
+  let s := @saturateEReal f x sat rnd;
   (@min_finite f ≤ x → x ≤ @max_finite f → s = x) ∧
   (x < @min_finite f → s = ⊥ ∨ s = @min_finite f) ∧
   (@max_finite f < x → s = ⊤ ∨ s = @max_finite f) := by
   simp
-  set s := @saturate f x sat rnd with hs
+  set s := @saturateEReal f x sat rnd with hs
   have min_le_max : (@min_finite f:ℝ) ≤ @max_finite f := by
     apply all_le_max_finite
     apply min_is_finite
-  unfold saturate at hs
+  unfold saturateEReal at hs
   rw [finite_to_ereal_eq _ min_is_finite, finite_to_ereal_eq _ max_is_finite] at hs ⊢
   split at hs
   apply And.intro _ (by apply And.intro; intro _; exfalso; cases heq:x <;> simp [heq] at *; linarith; intro _; cases heq:x <;> simp [heq] at *; linarith)
@@ -796,7 +796,7 @@ lemma encode_real_to_ereal_eq (v : ℝ) (h : Sum.inl (v : EReal) ∈ value_set f
 
 lemma canonical_in_range_after_round_sat (x : EReal) (sat : SaturationMode) (rnd : RoundingMode) (r : ℝ) :
   let R := @round_to_precision f x rnd;
-  let S := @saturate f R sat rnd;
+  let S := @saturateEReal f R sat rnd;
   -- saturation returns a real value
   S = r →
   ∃ (a : float 2), r = a ∧ @canonical 2 f.to_format a ∧ @min_finite f ≤ (a : ℝ) ∧ (a : ℝ) ≤ @max_finite f := by
@@ -806,7 +806,7 @@ lemma canonical_in_range_after_round_sat (x : EReal) (sat : SaturationMode) (rnd
       simp
       intro heq
       set R := @round_to_precision f x rnd with hr
-      set S := @saturate f R sat rnd with hs
+      set S := @saturateEReal f R sat rnd with hs
       have ⟨heq1, heq2, heq3⟩ := @saturate_eq f R sat rnd
       rcases R.decidableLT (@min_finite f) with hle1|hlt
       rcases R.decidableLE (@max_finite f:EReal) with hlt|hle2
@@ -843,9 +843,9 @@ lemma canonical_in_range_after_round_sat (x : EReal) (sat : SaturationMode) (rnd
 lemma saturate_ext_domain_ext
   (domain_sat_consistent : ∀ (sat : SaturationMode), f.d = .finite → ¬sat = .SatFinite → False)
   (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
-  @saturate f x sat rnd = ⊥ ∨ @saturate f x sat rnd = ⊤ →
+  @saturateEReal f x sat rnd = ⊥ ∨ @saturateEReal f x sat rnd = ⊤ →
   f.d = .extended := by
-  unfold saturate
+  unfold saturateEReal
   split
   intro heq
   rw [finite_to_ereal_eq _ max_is_finite, finite_to_ereal_eq _ min_is_finite] at *
@@ -897,9 +897,9 @@ lemma saturate_ext_domain_ext
   simp
 
 lemma saturate_bot_signed (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
-  @saturate f x sat rnd = ⊥ →
+  @saturateEReal f x sat rnd = ⊥ →
   f.s = .signed := by
-  unfold saturate
+  unfold saturateEReal
   rw [finite_to_ereal_eq _ min_is_finite, finite_to_ereal_eq _ max_is_finite]
   have : ¬((@min_finite f : ℝ):EReal) = ⊥ := by
     have := @min_is_finite f
@@ -925,11 +925,11 @@ noncomputable def in_value_set_ereal
   (domain_sat_consistent : ∀ (sat : SaturationMode), f.d = .finite → ¬sat = .SatFinite → False)
   (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
   let R := @round_to_precision f x rnd;
-  let S := @saturate f R sat rnd;
+  let S := @saturateEReal f R sat rnd;
   Sum.inl S ∈ value_set f := by
     simp [value_set]
     set R := @round_to_precision f x rnd with hr
-    set S := @saturate f R sat rnd with hs
+    set S := @saturateEReal f R sat rnd with hs
     match S with
     |⊥ =>
       have : f.d = .extended ∧ f.s=.signed := by
@@ -972,9 +972,9 @@ noncomputable def in_value_set
   (domain_sat_consistent : ∀ (sat : SaturationMode), f.d = .finite → ¬sat = .SatFinite → False)
   (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
   let R := @round_to_precision f x rnd;
-  let S := @saturateC f R sat rnd;
+  let S := @saturate f R sat rnd;
   S ∈ value_set f := by
-    simp [saturateC]
+    simp [saturate]
     by_cases hnan : sat = .SatNone ∧ @satNoneNaNCase f (@round_to_precision f x rnd) rnd
     · simp [hnan, value_set]
       exists (.p3109_nan : p3109 f)
@@ -983,5 +983,5 @@ noncomputable def in_value_set
       · simp [hnan, hclip, value_set]
         exists (@max_finite f)
         simp [to_cereal]
-      · simpa [hnan, hclip, saturateC] using
+      · simpa [hnan, hclip, saturate] using
           (@in_value_set_ereal f domain_sat_consistent x rnd sat)

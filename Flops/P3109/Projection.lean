@@ -11,7 +11,7 @@ namespace p3109
 
 noncomputable def project (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :=
   let R := @round_to_precision f x rnd;
-  let S := @saturateC f R sat rnd;
+  let S := @saturate f R sat rnd;
   let e := @encode f S (@in_value_set f domain_sat_consistent x rnd sat);
   e
 
@@ -36,7 +36,7 @@ lemma project_in_bound_eq_round (x : EReal) (rnd : RoundingMode) (sat : Saturati
   intro hx
   unfold project;
   -- Since x is in bounds, the saturate function returns the rounded value.
-  have h_saturate : @saturate f (@round_to_precision f x rnd) sat rnd = @round_to_precision f x rnd := by
+  have h_saturate : @saturateEReal f (@round_to_precision f x rnd) sat rnd = @round_to_precision f x rnd := by
     apply (saturate_eq _ _ _).left;
     · by_cases h : x = ⊥ <;> by_cases h' : x = ⊤ <;> simp_all +decide [ round_to_precision_eq_simp ];
       · exact?;
@@ -87,7 +87,7 @@ lemma project_in_bound_eq_round (x : EReal) (rnd : RoundingMode) (sat : Saturati
   set round := @round_to_precision_generic f a rnd with hround
   simp_rw [<-hround]
   suffices @min_finite f ≤ round ∧ round ≤ @max_finite f by
-    unfold saturate
+    unfold saturateEReal
     split
     simp [encode]
 
@@ -297,7 +297,7 @@ lemma project_in_bound_eq_round' (x : ℝ) (rnd : RoundingMode) (sat : Saturatio
   convert @encode_eq_to_p3109 f _ _ _ _ using 1;
   unfold project;
   -- Since $x$ is in the bounds, the saturate function returns $x$ itself.
-  have h_saturate : @saturate f (@round_to_precision f x rnd) sat rnd = @round_to_precision f x rnd := by
+  have h_saturate : @saturateEReal f (@round_to_precision f x rnd) sat rnd = @round_to_precision f x rnd := by
     apply (saturate_eq _ _ _).left;
     · rw [ round_to_precision_eq_simp, round_to_precision_eq, round_to_fp_eq ];
       grind +suggestions;
@@ -321,7 +321,7 @@ lemma project_in_bound_eq_round' (x : ℝ) (rnd : RoundingMode) (sat : Saturatio
   set round := @round_to_fp f rnd x with hround
   simp_rw [<-hround]
   suffices @min_finite f ≤ (round:ℝ) ∧ (round:ℝ) ≤ @max_finite f by
-    unfold saturate
+    unfold saturateEReal
     split
     simp [encode]
 
@@ -483,11 +483,11 @@ lemma project_faithful (x : ℝ) (rnd : RoundingMode) (sat : SaturationMode) :
   else
   simp at hbound
   simp [project]
-  set satx := @saturate f (@round_to_precision f (↑x) rnd) sat rnd with hsat
-  set satup := @saturate f (@round_to_precision f (↑x) .RU) sat .RU with hsatup
-  set satdown := @saturate f (@round_to_precision f (↑x) .RD) sat .RD with hsatdown
+  set satx := @saturateEReal f (@round_to_precision f (↑x) rnd) sat rnd with hsat
+  set satup := @saturateEReal f (@round_to_precision f (↑x) .RU) sat .RU with hsatup
+  set satdown := @saturateEReal f (@round_to_precision f (↑x) .RD) sat .RD with hsatdown
   simp_rw [<-hsat, <-hsatup, <-hsatdown]
-  unfold saturate at hsat hsatup hsatdown
+  unfold saturateEReal at hsat hsatup hsatdown
   simp [round_to_precision, <-lift_some_some_ereal] at hsat hsatup hsatdown
   rw [lift_some_some_ereal]  at hsat hsatup hsatdown
   rw [finite_to_ereal_eq _ (@max_is_finite f)]  at hsat hsatup hsatdown
@@ -866,8 +866,8 @@ lemma x_overflow_project_max_or_top {x : ℝ} :
   left
   rw [finite_encode_self]
   apply max_is_finite
-  have : @saturate f (@max_finite f) sat rnd = @max_finite f := by
-    unfold saturate
+  have : @saturateEReal f (@max_finite f) sat rnd = @max_finite f := by
+    unfold saturateEReal
     rw [if_pos]; simp
     rw [finite_to_ereal_eq _ (@max_is_finite f)]
     rw [finite_to_ereal_eq _ (@min_is_finite f)]
@@ -899,9 +899,9 @@ lemma finite_project_self {x : p3109 f} :
   rewrite (occs := .pos [2]) [_root_.to_real] at this
   simp at this
   rw [this] at hround; simp [_root_.to_real] at hround
-  set satres := @saturate f round sat rnd with hsat
+  set satres := @saturateEReal f round sat rnd with hsat
   simp_rw [<-hsat]
-  unfold saturate at hsat
+  unfold saturateEReal at hsat
   rw [if_pos (by
     clear hsat;
     rw [finite_to_ereal_eq _ (@max_is_finite f)]
@@ -989,8 +989,8 @@ lemma x_overflow_project_min_or_bot {x : ℝ} :
   left
   rw [finite_encode_self]
   apply min_is_finite
-  have : @saturate f (@min_finite f) sat rnd = @min_finite f := by
-    unfold saturate
+  have : @saturateEReal f (@min_finite f) sat rnd = @min_finite f := by
+    unfold saturateEReal
     rw [if_pos]; simp
     rw [finite_to_ereal_eq _ (@max_is_finite f)]
     rw [finite_to_ereal_eq _ (@min_is_finite f)]

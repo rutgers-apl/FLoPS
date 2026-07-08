@@ -155,8 +155,8 @@ lemma overflow_project_eq_max_or_not_finite (x : ℝ) (rnd : RoundingMode) (sat 
     cases this <;> simp_all +decide [ round_to_precision_eq_simp, round_to_precision_eq, round_to_fp_eq ];
     · exact Or.inr ( by unfold encode; tauto );
     · grind +suggestions;
-  · have h_saturate : @saturate f (@max_finite f) sat rnd = @max_finite f := by
-      unfold saturate;
+  · have h_saturate : @saturateEReal f (@max_finite f) sat rnd = @max_finite f := by
+      unfold saturateEReal;
       rw [ if_pos ];
       simp +decide [ finite_to_ereal_eq _ (@max_is_finite f), finite_to_ereal_eq _ (@min_is_finite f) ];
       apply all_le_max_finite;
@@ -197,8 +197,8 @@ lemma overflow_neg_project_eq_min_or_not_finite (x : ℝ) (rnd : RoundingMode) (
     cases this <;> simp_all +decide [ round_to_precision_eq_simp, round_to_precision_eq, round_to_fp_eq ];
     · exact Or.inr ( by rintro ⟨ ⟩ );
     · grind +suggestions;
-  · have : @saturate f (@min_finite f) sat rnd = @min_finite f := by
-      unfold saturate
+  · have : @saturateEReal f (@min_finite f) sat rnd = @min_finite f := by
+      unfold saturateEReal
       rw [if_pos]; simp
       rw [finite_to_ereal_eq _ (@max_is_finite f)]
       rw [finite_to_ereal_eq _ (@min_is_finite f)]

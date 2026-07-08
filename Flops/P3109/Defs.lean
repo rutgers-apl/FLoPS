@@ -23,7 +23,7 @@ structure p3109_format where
 
 namespace p3109_format
 
-abbrev CReal := EReal ⊕ Unit
+abbrev CEReal := EReal ⊕ Unit
 
 -- compute the exponent width
 def W (f : p3109_format) : ℕ := match f.s with
@@ -410,7 +410,7 @@ noncomputable def to_ereal (x : p3109 f) : EReal := match x with
   | .p3109_finite (m : ℤ) (e : ℤ) _ _ => (m : ℝ) * (2^e : ℝ)
 
 -- to closed extended reals, unit is for NaN
-noncomputable def to_cereal (x : p3109 f) : CReal :=
+noncomputable def to_cereal (x : p3109 f) : CEReal :=
   match x with
   | .p3109_infinity _ true _ => Sum.inl ⊥
   | .p3109_infinity _ false _ => Sum.inl ⊤
