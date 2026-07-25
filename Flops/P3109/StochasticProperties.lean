@@ -1,4 +1,4 @@
-import Mathlib
+import Mathlib.Tactic
 import Flops.Core.RoundOp
 import Flops.P3109.Defs
 import Flops.P3109.Rounding
@@ -51,6 +51,15 @@ variable {format : Format}
 
 /-! ## Integer preservation -/
 
+private lemma floor_neg_intCast (m : ℤ) : ⌊- (m : ℝ)⌋ = -m := by
+  exact_mod_cast Int.floor_intCast (-m)
+
+private lemma fract_neg_intCast (m : ℤ) : Int.fract (-m : ℝ) = 0 := by
+  exact_mod_cast Int.fract_intCast (-m)
+
+private lemma fract_abs_intCast (m : ℤ) : Int.fract |(m : ℝ)| = 0 := by
+  cases abs_cases (m : ℝ) <;> simp +decide [*]
+
 /-
 When the mantissa is an integer, Mode A stochastic rounding returns it exactly.
     This follows because `Int.fract |↑m| = 0` for integers, making the round-up
@@ -61,7 +70,7 @@ lemma stochastic_A_integer (N : ℕ) (R : ℕ) (h : 0 ≤ R ∧ R < 2^N) (e : �
       unfold stochastic;
       cases abs_cases ( m : ℝ ) <;> simp +decide [ * ];
       · split_ifs <;> norm_cast at * <;> omega;
-      · norm_num [ show ⌊- ( m : ℝ ) ⌋ = -m by exact_mod_cast Int.floor_intCast _, Int.fract ];
+      · norm_num [floor_neg_intCast m, Int.fract];
         split_ifs <;> norm_cast at * <;> linarith
 
 /-
@@ -72,8 +81,8 @@ lemma stochastic_B_integer (N : ℕ) (R : ℕ) (h : 0 ≤ R ∧ R < 2^N) (e : �
       unfold stochastic;
       cases abs_cases ( m : ℝ ) <;> simp +decide [ * ];
       · split_ifs <;> norm_cast at * <;> ring_nf at * <;> omega;
-      · norm_num [ show ⌊- ( m : ℝ ) ⌋ = -m by exact_mod_cast Int.floor_intCast _ ];
-        norm_num [ show Int.fract ( -m : ℝ ) = 0 by exact_mod_cast Int.fract_intCast _ ];
+      · norm_num [floor_neg_intCast m];
+        norm_num [fract_neg_intCast m];
         split_ifs <;> norm_cast at * <;> omega
 
 /-
@@ -82,10 +91,9 @@ When the mantissa is an integer, Mode C stochastic rounding returns it exactly.
 lemma stochastic_C_integer (N : ℕ) (R : ℕ) (h : 0 ≤ R ∧ R < 2^N) (e : ℤ) (m : ℤ) :
     stochastic (.C N R h) e (m : ℝ) = m := by
       -- Since $m$ is an integer, $|m|$ is also an integer, and thus its fractional part is zero.
-      have h_frac : Int.fract |(m : ℝ)| = 0 := by
-        cases abs_cases ( m : ℝ ) <;> simp +decide [ * ]
+      have h_frac : Int.fract |(m : ℝ)| = 0 := fract_abs_intCast m
       generalize_proofs at *;
-      simp [stochastic, h_frac];
+      simp only [stochastic, Int.cast_pos, Int.reduceNeg, h_frac, zero_mul, ge_iff_le, mul_ite, ite_mul, one_mul, neg_mul, neg_add_rev];
       unfold stochastic.RNITE; norm_num [ h_frac ] ;
       split_ifs <;> norm_cast at * <;> simp_all +decide [ Int.floor_eq_iff ];
       · linarith;
@@ -123,7 +131,7 @@ lemma floor_eta_bound (N : ℕ) (η : ℝ) (hη0 : 0 ≤ η) (hη1 : η < 1) :
 The number of R ∈ {1,...,2^N-1} causing Mode A to round up
     equals ⌊η·2^N⌋.toNat, where η is the fractional part of the mantissa.
 -/
-lemma stochastic_A_roundup_count (N : ℕ) (_hN : 0 < N) (η : ℝ) (hη0 : 0 ≤ η) (hη1 : η < 1) :
+lemma stochastic_A_roundup_count (N : ℕ) (η : ℝ) (hη0 : 0 ≤ η) (hη1 : η < 1) :
     ((Icc 1 (2 ^ N - 1)).filter
       (fun R : ℕ => decide ((2 : ℤ) ^ N ≤ ⌊η * (2 : ℝ) ^ N⌋ + (R : ℤ)))).card
     = (⌊η * (2 : ℝ) ^ N⌋).toNat := by
@@ -136,7 +144,7 @@ Sum of if-then-else values over all valid R for Mode A.
     The sum decomposes into a constant part `(2^N-1) * a` and a counting part `⌊η·2^N⌋`.
     This is the key formula for computing the average rounded value.
 -/
-lemma stochastic_A_sum (N : ℕ) (hN : 0 < N) (η : ℝ) (hη0 : 0 ≤ η) (hη1 : η < 1)
+lemma stochastic_A_sum (N : ℕ) (η : ℝ) (hη0 : 0 ≤ η) (hη1 : η < 1)
     (a : ℤ) :
     (Icc 1 (2 ^ N - 1)).sum
       (fun R : ℕ => if (2 : ℤ) ^ N ≤ ⌊η * (2 : ℝ) ^ N⌋ + (R : ℤ) then a + 1 else a)
@@ -145,7 +153,7 @@ lemma stochastic_A_sum (N : ℕ) (hN : 0 < N) (η : ℝ) (hη0 : 0 ≤ η) (hη1
       have h_split : (∑ R ∈ Icc 1 (2 ^ N - 1 : ℕ), (if (2 ^ N : ℤ) ≤ ⌊η * (2 : ℝ) ^ N⌋ + R then a + 1 else a)) = (∑ R ∈ Icc 1 (2 ^ N - 1 : ℕ), a) + (∑ R ∈ Icc 1 (2 ^ N - 1 : ℕ), (if (2 ^ N : ℤ) ≤ ⌊η * (2 : ℝ) ^ N⌋ + R then 1 else 0)) := by
         simpa only [ ← Finset.sum_add_distrib ] using Finset.sum_congr rfl fun x hx => by split_ifs <;> ring;
       have h_count : ((Icc 1 (2 ^ N - 1 : ℕ)).filter (fun R : ℕ => decide ((2 : ℤ) ^ N ≤ ⌊η * (2 : ℝ) ^ N⌋ + (R : ℤ)))).card = (⌊η * (2 : ℝ) ^ N⌋).toNat := by
-        convert stochastic_A_roundup_count N hN η hη0 hη1 using 1;
+        convert stochastic_A_roundup_count N η hη0 hη1 using 1;
       simp_all +decide [ Finset.sum_ite ];
       exact Int.floor_nonneg.mpr ( mul_nonneg hη0 ( pow_nonneg zero_le_two _ ) )
 
@@ -203,8 +211,8 @@ The Gauss sum identity cast to ℝ: the sum of the first M natural numbers
 lemma gauss_sum_real (M : ℕ) :
     (∑ k ∈ Finset.range M, (k : ℝ)) = (M : ℝ) * ((M : ℝ) - 1) / 2 := by
   induction M with
-  | zero => simp
-  | succ n ih => simp [Finset.sum_range_succ]; linarith
+  | zero => simp only [range_zero, sum_empty, CharP.cast_eq_zero, zero_sub, mul_neg, mul_one, neg_zero, zero_div]
+  | succ n ih => simp only [sum_range_succ, Nat.cast_add, Nat.cast_one, add_sub_cancel_right]; linarith
 
 /-
 The exact bias of Mode A stochastic rounding (SRFF), averaged uniformly over
@@ -219,7 +227,7 @@ This formalizes the main result from §III-C of the paper:
 
 The bias is always negative: SRFF systematically rounds down.
 -/
-theorem stochastic_A_exact_bias (N : ℕ) (_hN : 0 < N) :
+theorem stochastic_A_exact_bias (N : ℕ) :
     (∑ k ∈ Finset.range (2 ^ N), (k : ℝ)) / ((2 : ℝ) ^ N) ^ 2 - 1 / 2 =
     -(1 : ℝ) / 2 ^ (N + 1) := by
   rw [ gauss_sum_real ] ; ring ; norm_num [ pow_succ' ];
@@ -235,7 +243,7 @@ is {2^N − k, ..., 2^N − 1}, which has k elements.
 -/
 lemma srf_roundup_count (N : ℕ) (k : ℕ) (hk : k < 2 ^ N) :
     ((Finset.range (2 ^ N)).filter
-      (fun R => (2 : ℝ) ^ N ≤ (k : ℝ) + ((R : ℝ) + 0.5))).card
+      (fun R : ℕ => (2 : ℝ) ^ N ≤ (k : ℝ) + ((R : ℝ) + 0.5))).card
     = k := by
   norm_num [ add_comm, Finset.card_image_of_injective, Function.Injective, Finset.filter_image ];
   convert roundup_count_full_range N k hk using 2;
@@ -249,10 +257,10 @@ lemma srf_roundup_count (N : ℕ) (k : ℕ) (hk : k < 2 ^ N) :
 Direct consequence of `srf_roundup_count`. The average round-up probability
 equals k/2^N = η, so the bias is zero for each discretized η.
 -/
-lemma srf_pointwise_unbiased (N : ℕ) (hN : 0 < N)
+lemma srf_pointwise_unbiased (N : ℕ)
     (k : ℕ) (hk : k < 2 ^ N) :
     ((Finset.range (2 ^ N)).filter
-      (fun R => (2 : ℝ) ^ N ≤ (k : ℝ) + ((R : ℝ) + 0.5))).card
+      (fun R : ℕ => (2 : ℝ) ^ N ≤ (k : ℝ) + ((R : ℝ) + 0.5))).card
     / (2 : ℝ) ^ N
     = (k : ℝ) / (2 : ℝ) ^ N := by
   convert congr_arg ( fun x : ℕ => ( x : ℝ ) / 2 ^ N ) ( srf_roundup_count ( N := N ) ( k := k ) hk ) using 1
@@ -264,7 +272,7 @@ decomposes into k terms of (1 − k/2^N) and (2^N − k) terms of (−k/2^N),
 which telescope to 0. The original roadmap formulation
 `∑(2^N − k) / (2^N)^2 − 1/2 = 0` was incorrect (it equals 1/2^{N+1}).
 -/
-theorem srf_exact_bias (N : ℕ) (hN : 0 < N) :
+theorem srf_exact_bias (N : ℕ) :
     (∑ k ∈ Finset.range (2 ^ N),
       (∑ R ∈ Finset.range (2 ^ N),
         if (2 : ℝ) ^ N ≤ (k : ℝ) + ((R : ℝ) + 0.5)
@@ -279,7 +287,7 @@ theorem srf_exact_bias (N : ℕ) (hN : 0 < N) :
     · ext x; norm_num at *; rw [ ← @Nat.cast_lt ℝ ] at *; norm_num at *; constructor <;> intros <;> try linarith;
       · exact lt_tsub_iff_left.mpr ( by rw [ ← @Nat.cast_lt ℝ ] ; push_cast; linarith );
       · exact ⟨ by norm_cast; omega, by linarith [ show ( x : ℝ ) + k + 1 ≤ 2 ^ N by norm_cast; omega ] ⟩;
-    · ext x; simp [Finset.inter_filter, Finset.mem_Ico];
+    · ext x; simp only [one_div, mem_filter, mem_range, mem_Ico, tsub_le_iff_right];
       rw [ inv_eq_one_div, div_add', div_add', le_div_iff₀ ] <;> norm_cast ; ring;
       constructor <;> intro h <;> omega;
   convert h_fubini using 1 ; ring;
@@ -292,7 +300,7 @@ Split the sum into the filter (k terms contributing (1−η)²) and its compleme
 (2^N−k terms contributing η²), where η = k/2^N. Use `srf_roundup_count` for
 the cardinality. Expand and simplify to η(1−η).
 -/
-lemma srf_second_moment (N : ℕ) (hN : 0 < N)
+lemma srf_second_moment (N : ℕ)
     (k : ℕ) (hk : k < 2 ^ N) :
     (1 / (2 : ℝ) ^ N) *
       ((Finset.range (2 ^ N)).sum
@@ -300,24 +308,28 @@ lemma srf_second_moment (N : ℕ) (hN : 0 < N)
                   then (1 - (k : ℝ) / (2 : ℝ) ^ N) ^ 2
                   else ((k : ℝ) / (2 : ℝ) ^ N) ^ 2))
     = ((k : ℝ) / (2 : ℝ) ^ N) * (1 - (k : ℝ) / (2 : ℝ) ^ N) := by
-  -- Apply `h_filter_card` to rewrite the sum.
-  have h_sum_split : (∑ R ∈ Finset.range (2 ^ N), if (2 : ℝ) ^ N ≤ (k : ℝ) + ((R : ℝ) + 0.5) then (1 - (k : ℝ) / (2 : ℝ) ^ N) ^ 2 else ((k : ℝ) / (2 : ℝ) ^ N) ^ 2) = (k : ℝ) * (1 - (k : ℝ) / (2 : ℝ) ^ N) ^ 2 + (2 ^ N - k) * ((k : ℝ) / (2 : ℝ) ^ N) ^ 2 := by
-    rw [ Finset.sum_ite ];
-    simp +zetaDelta at *;
-    congr;
-    · convert srf_roundup_count N k hk using 1;
-      refine' Finset.card_bij ( fun x hx => x ) _ _ _ <;> aesop;
-    · rw [ show ( Finset.filter ( fun x : ℕ => ( k : ℝ ) + ( x + 0.5 ) < 2 ^ N ) ( Finset.range ( 2 ^ N ) ) ) = Finset.range ( 2 ^ N - k ) from ?_ ] ; norm_num [ hk.le ];
-      ext x; norm_num; constructor <;> intros <;> norm_cast at *;
-      · exact lt_tsub_iff_left.mpr ( by rw [ ← @Nat.cast_lt ℝ ] ; push_cast at *; linarith );
-      · exact ⟨ lt_of_lt_of_le ‹_› ( Nat.sub_le _ _ ), by rw [ Nat.cast_pow ] ; linarith [ show ( x : ℝ ) + 1 ≤ 2 ^ N - k from by exact le_tsub_of_add_le_left <| by norm_cast; linarith [ Nat.sub_add_cancel hk.le ] ] ⟩;
-  grind
+  have hnot :
+      ((Finset.range (2 ^ N)).filter
+        (fun R : ℕ => ¬(2 : ℝ) ^ N ≤ (k : ℝ) + ((R : ℝ) + 0.5))).card
+      = 2 ^ N - k := by
+    have hpartition := Finset.card_filter_add_card_filter_not
+      (s := Finset.range (2 ^ N))
+      (p := fun R : ℕ => (2 : ℝ) ^ N ≤ (k : ℝ) + ((R : ℝ) + 0.5))
+    rw [srf_roundup_count N k hk] at hpartition
+    simp only [Finset.card_range] at hpartition
+    omega
+  rw [Finset.sum_ite]
+  simp only [Finset.sum_const, nsmul_eq_mul]
+  rw [srf_roundup_count N k hk, hnot]
+  push_cast [Nat.cast_sub hk.le]
+  field_simp
+  ring
 
 /-
 Completing the square: η(1−η) = 1/4 − (η−1/2)². Since squares are non-negative,
 the result follows.
 -/
-lemma variance_single_le_quarter (η : ℝ) (hη0 : 0 ≤ η) (hη1 : η ≤ 1) :
+lemma variance_single_le_quarter (η : ℝ) :
     η * (1 - η) ≤ 1 / 4 := by
   nlinarith [sq_nonneg (η - 1 / 2)]
 
@@ -327,13 +339,12 @@ lemma variance_single_le_quarter (η : ℝ) (hη0 : 0 ≤ η) (hη1 : η ≤ 1) 
 Factor as (∑ f R₁) * (∑ g R₂) using `Finset.sum_mul_sum`. Both factors are zero
 by hypothesis.
 -/
-lemma independent_cross_term_zero (N : ℕ) (M : ℕ)
+lemma independent_cross_term_zero (M : ℕ)
     (f g : ℕ → ℝ)
-    (hf : (∑ R ∈ Finset.range M, f R) = 0)
     (hg : (∑ R ∈ Finset.range M, g R) = 0) :
     (∑ R₁ ∈ Finset.range M, ∑ R₂ ∈ Finset.range M,
       f R₁ * g R₂) = 0 := by
-  simp +decide [ ← Finset.mul_sum _ _ _, ← Finset.sum_mul, hf, hg ]
+  simp +decide [ ← Finset.mul_sum _ _ _, ← Finset.sum_mul, hg ]
 
 /-
 The sum over all `Rs : Fin n → Fin M` can be decomposed: the coordinates other
@@ -341,7 +352,7 @@ than i and j each contribute a factor of M (summing over M values of a constant)
 while coordinates i and j contribute their respective marginal sums.
 -/
 set_option maxHeartbeats 400000 in
-lemma product_sum_factors (n : ℕ) (M : ℕ) (hM : 0 < M)
+lemma product_sum_factors (n : ℕ) (M : ℕ)
     (f : Fin n → ℕ → ℝ)
     (i j : Fin n) (hij : i ≠ j) :
     (∑ Rs ∈ Finset.univ (α := Fin n → Fin M),
@@ -355,11 +366,10 @@ lemma product_sum_factors (n : ℕ) (M : ℕ) (hM : 0 < M)
     refine' Finset.sum_bij ( fun Rs _ => fun k _ => Rs k ) _ _ _ _ <;> simp +decide [ Finset.prod_ite, Finset.filter_eq', Finset.filter_ne' ];
     · simp +decide [ funext_iff ];
     · exact fun b => ⟨ fun k => b k ( Finset.mem_univ k ), rfl ⟩;
-    · intro a; rw [ Finset.prod_eq_single ⟨ i, by aesop ⟩, Finset.prod_eq_single ⟨ j, by aesop ⟩ ] <;> aesop;
+    · intro a; rw [ Finset.prod_eq_single ⟨ i, by simp_all only [ne_eq, mem_univ]⟩, Finset.prod_eq_single ⟨ j, by simp_all only [ne_eq, mem_univ]⟩ ] <;> aesop?;
   simp_all +decide [ Finset.sum_range, Finset.prod_ite, Finset.filter_eq', Finset.filter_ne' ];
   simp_all +decide [ Finset.card_erase_of_mem, Finset.mem_erase, ne_comm ] ; ring;
   aesop
-
 /-
 Expand (∑ᵢ εᵢ)² = ∑ᵢ εᵢ² + ∑_{i≠j} εᵢεⱼ. The cross terms vanish by
 `product_sum_factors` + `h_mean`. The diagonal terms are bounded by n/4.
@@ -387,7 +397,7 @@ lemma variance_sum_bound (n : ℕ) (N : ℕ)
         · exact fun b => ⟨ fun j => b j ( Finset.mem_univ j ), funext fun j => rfl ⟩;
       simp_all +decide [ ← sq, Finset.prod_ite, Finset.filter_eq', Finset.filter_ne' ];
       rw [ mul_comm, Finset.sum_range ];
-    · convert product_sum_factors n ( 2 ^ N ) ( by positivity ) ( fun k R => err k R ) i j hij using 1 ; norm_num [ h_mean ];
+    · convert product_sum_factors n ( 2 ^ N ) ( fun k R => err k R ) i j hij using 1 ; norm_num [ h_mean ];
   rcases n <;> simp_all +decide [ Finset.sum_ite, Finset.filter_eq, Finset.filter_ne ];
   norm_num [ pow_succ, ← Finset.mul_sum _ _ _, ← Finset.sum_mul, div_le_iff₀ ] at *;
   exact le_trans ( mul_le_mul_of_nonneg_left ( Finset.sum_le_sum fun _ _ => h_var _ ) ( by positivity ) ) ( by norm_num [ Finset.sum_mul _ _ _ ] ; ring_nf; norm_num )
@@ -399,7 +409,7 @@ Chain the results: verify h_mean from herr + srf_pointwise_unbiased, verify
 h_var from herr + srf_second_moment + variance_single_le_quarter, apply
 variance_sum_bound, then Real.sqrt_le_sqrt.
 -/
-theorem srf_summation_rms_bound (n : ℕ) (N : ℕ) (hN : 0 < N)
+theorem srf_summation_rms_bound (n : ℕ) (N : ℕ)
     (ks : Fin n → ℕ) (hks : ∀ i, ks i < 2 ^ N)
     (err : Fin n → ℕ → ℝ)
     (herr : ∀ i R, err i R =
@@ -413,28 +423,34 @@ theorem srf_summation_rms_bound (n : ℕ) (N : ℕ) (hN : 0 < N)
   apply Real.sqrt_le_sqrt;
   apply variance_sum_bound n N err;
   · intro i
-    have := srf_pointwise_unbiased N hN (ks i) (hks i)
-    simp_all +decide [ Finset.sum_ite ];
-    rw [ show ( Finset.filter ( fun x : ℕ => ( ks i : ℝ ) + ( x + 0.5 ) < 2 ^ N ) ( Finset.range ( 2 ^ N ) ) ) = Finset.range ( 2 ^ N ) \ ( Finset.filter ( fun x : ℕ => ( ks i : ℝ ) + ( x + 0.5 ) ≥ 2 ^ N ) ( Finset.range ( 2 ^ N ) ) ) by ext; aesop, Finset.card_sdiff ] ; norm_num [ this ];
-    convert congr_arg ( fun x : ℕ => ( x : ℝ ) - x * ( ks i / 2 ^ N ) + - ( ( 2 ^ N - x ) * ( ks i / 2 ^ N ) ) ) ( show Finset.card ( Finset.filter ( fun x : ℕ => ( ks i : ℝ ) + ( x + 1 / 2 ) ≥ 2 ^ N ) ( Finset.range ( 2 ^ N ) ) ) = ks i from ?_ ) using 1;
-    · rw [ Nat.cast_sub ] <;> norm_num;
-      · exact Or.inl ( by rw [ Finset.inter_eq_left.mpr ( Finset.filter_subset _ _ ) ] );
-      · exact le_trans ( Finset.card_le_card ( Finset.inter_subset_right ) ) ( by norm_num );
-    · field_simp
-      ring;
-    · convert this using 1;
-      rw [ Finset.card_filter, Finset.card_filter ];
-      rw [ Finset.sum_image ] <;> norm_num;
+    have hcard := srf_roundup_count N (ks i) (hks i)
+    have hnot :
+        ((Finset.range (2 ^ N)).filter
+          (fun R : ℕ => ¬(2 : ℝ) ^ N ≤ (ks i : ℝ) + ((R : ℝ) + 0.5))).card
+        = 2 ^ N - ks i := by
+      have hpartition := Finset.card_filter_add_card_filter_not
+        (s := Finset.range (2 ^ N))
+        (p := fun R : ℕ => (2 : ℝ) ^ N ≤ (ks i : ℝ) + ((R : ℝ) + 0.5))
+      rw [hcard] at hpartition
+      simp only [Finset.card_range] at hpartition
+      omega
+    simp_rw [herr i]
+    rw [Finset.sum_ite]
+    simp only [Finset.sum_const, nsmul_eq_mul]
+    rw [hcard, hnot]
+    push_cast [Nat.cast_sub (hks i).le]
+    field_simp
+    ring
   · intro i
-    have := srf_second_moment N hN (ks i) (hks i)
-    simp [herr] at this;
+    have := srf_second_moment N (ks i) (hks i)
+    simp only [one_div] at this;
     simp_all +decide [ div_eq_inv_mul ];
     nlinarith only [ sq_nonneg ( ( 2 ^ N : ℝ ) ⁻¹ * ks i - 1 / 2 ), mul_inv_cancel₀ ( show ( 2 ^ N : ℝ ) ≠ 0 by positivity ) ]
 
 /-
 From `srf_summation_rms_bound`, rewrite √(n/4) = √n / √4 = √n / 2.
 -/
-theorem srf_summation_sqrt_n (n : ℕ) (N : ℕ) (hN : 0 < N)
+theorem srf_summation_sqrt_n (n : ℕ) (N : ℕ)
     (ks : Fin n → ℕ) (hks : ∀ i, ks i < 2 ^ N)
     (err : Fin n → ℕ → ℝ)
     (herr : ∀ i R, err i R =
@@ -445,7 +461,7 @@ theorem srf_summation_sqrt_n (n : ℕ) (N : ℕ) (hN : 0 < N)
       (∑ i : Fin n, err i (Rs i).val) ^ 2)
       / ((2 : ℝ) ^ N) ^ n)
     ≤ Real.sqrt (n : ℝ) / 2 := by
-  convert srf_summation_rms_bound n N hN ks hks err herr using 1 ; norm_num
+  convert srf_summation_rms_bound n N ks hks err herr using 1 ; norm_num
 
 /-! ## Phase 0: RNITE (Round to Nearest Integer, Ties to Even) -/
 
@@ -474,7 +490,7 @@ RNITE of an integer is itself.
 -/
 lemma rnite_integer (n : ℤ) : rnite (n : ℝ) = n := by
   -- Since $n$ is an integer, $x - \lfloor x \rfloor = 0$, so we are in the first case.
-  simp [rnite]
+  simp only [rnite, Int.floor_intCast, sub_self, one_div, inv_pos, Nat.ofNat_pos, ↓reduceIte]
 
 /-
 For 0 ≤ x < 2^N, RNITE(x) ∈ {0, ..., 2^N}.
@@ -483,7 +499,7 @@ The value 2^N is possible (e.g. RNITE(2^N - 0.5) when 2^N is even).
 lemma rnite_range (N : ℕ) (x : ℝ) (hx0 : 0 ≤ x) (hx1 : x < 2 ^ N) :
     0 ≤ rnite x ∧ rnite x ≤ (2 : ℤ) ^ N := by
   have h_rnite_bounds : |x - (rnite x : ℝ)| ≤ 1 / 2 := by
-    exact?
+    exact rnite_nearest x
   generalize_proofs at *; (
   exact ⟨ Int.le_of_lt_add_one <| by rw [ ← @Int.cast_lt ℝ ] ; push_cast; linarith [ abs_le.mp h_rnite_bounds ], Int.le_of_lt_add_one <| by rw [ ← @Int.cast_lt ℝ ] ; push_cast; linarith [ abs_le.mp h_rnite_bounds ] ⟩)
 
@@ -493,7 +509,7 @@ the sum of rounding errors is zero.
 
 Inputs are i · 2^N / 2^D for i = 0, ..., 2^D - 1.
 -/
-lemma rnite_unbiased_finite (N D : ℕ) (hN : 0 < N) (hND : N ≤ D) :
+lemma rnite_unbiased_finite (N D : ℕ) (hN : 0 < N) :
     (∑ i ∈ Finset.range (2 ^ D),
       ((rnite ((i : ℝ) * 2 ^ N / 2 ^ D) : ℝ) - (i : ℝ) * 2 ^ N / 2 ^ D))
     = 0 := by
@@ -504,11 +520,11 @@ lemma rnite_unbiased_finite (N D : ℕ) (hN : 0 < N) (hND : N ≤ D) :
       rw [ sub_mul, sub_div, mul_div_cancel_left₀ _ ( by positivity ) ];
     have h_rnite_symm : ∀ x : ℝ, rnite (2 ^ N - x) = 2 ^ N - rnite x := by
       intro x
-      simp [rnite];
+      simp only [rnite, Int.self_sub_floor, one_div, gt_iff_lt];
       rw [ Int.fract, Int.fract ];
       rw [ show ⌊2 ^ N - x⌋ = 2 ^ N - ⌊x⌋ - ( if x - ⌊x⌋ = 0 then 0 else 1 ) by
             split_ifs <;> norm_num [ Int.floor_eq_iff ] at *;
-            · rw [ Int.fract_eq_iff ] at * ; aesop;
+            · rw [ Int.fract_eq_iff ] at * ; rename_i h; simp_all only [le_refl, zero_lt_one, sub_zero, true_and]; obtain ⟨w, h⟩ := h; subst h; simp_all only [Int.floor_intCast, sub_add_cancel, le_refl, lt_add_iff_pos_right, zero_lt_one, and_self];
             · constructor <;> linarith [ Int.fract_add_floor x, Int.fract_nonneg x, Int.fract_lt_one x, show ( Int.fract x : ℝ ) > 0 from lt_of_le_of_ne ( Int.fract_nonneg x ) ( Ne.symm ‹_› ) ] ] ; norm_num ; ring;
       split_ifs <;> norm_num <;> try linarith [ Int.fract_add_floor x, Int.fract_nonneg x, Int.fract_lt_one x ];
       · simp_all +decide [ parity_simps ];
@@ -536,7 +552,7 @@ SRFF is unbiased when applied to values that are exact multiples of 2^{-N}.
 That is, when η = k/2^N for integer k, the discrete average of the
 round-up indicator over R ∈ {0,...,2^N-1} equals exactly k/2^N.
 -/
-lemma srff_unbiased_at_multiples (N : ℕ) (hN : 0 < N)
+lemma srff_unbiased_at_multiples (N : ℕ)
     (k : ℕ) (hk : k < 2 ^ N) :
     ((Finset.range (2 ^ N)).filter
       (fun R => 2 ^ N ≤ k + R)).card / (2 : ℝ) ^ N
@@ -547,8 +563,8 @@ lemma srff_unbiased_at_multiples (N : ℕ) (hN : 0 < N)
 For SRC: first RNITE the scaled fractional part, then apply SRFF.
 The round-up count is rnite(η · 2^N).toNat.
 -/
-lemma src_roundup_count (N : ℕ) (hN : 0 < N)
-    (η : ℝ) (hη0 : 0 ≤ η) (hη1 : η < 1)
+lemma src_roundup_count (N : ℕ)
+    (η : ℝ)
     (hk : (rnite (η * 2 ^ N)).toNat < 2 ^ N) :
     ((Finset.range (2 ^ N)).filter
       (fun R => 2 ^ N ≤ (rnite (η * 2 ^ N)).toNat + R)).card
@@ -558,8 +574,8 @@ lemma src_roundup_count (N : ℕ) (hN : 0 < N)
 /-
 Edge case: when rnite(η · 2^N) = 2^N, every R triggers round-up.
 -/
-lemma src_roundup_count_overflow (N : ℕ) (hN : 0 < N)
-    (η : ℝ) (hη0 : 0 ≤ η) (hη1 : η < 1)
+lemma src_roundup_count_overflow (N : ℕ)
+    (η : ℝ)
     (hk : rnite (η * 2 ^ N) = (2 : ℤ) ^ N) :
     ((Finset.range (2 ^ N)).filter
       (fun R => 2 ^ N ≤ (rnite (η * 2 ^ N)).toNat + R)).card
@@ -573,7 +589,7 @@ lemma src_roundup_count_overflow (N : ℕ) (hN : 0 < N)
 The pointwise bias of SRC at fractional part η = j/2^D:
 the bias equals rnite(η · 2^N) / 2^N - η.
 -/
-lemma src_pointwise_bias (N D : ℕ) (hN : 0 < N) (hND : N ≤ D)
+lemma src_pointwise_bias (N D : ℕ)
     (j : ℕ) (hj : j < 2 ^ D) :
     let η := (j : ℝ) / 2 ^ D
     ((Finset.range (2 ^ N)).filter
@@ -582,7 +598,7 @@ lemma src_pointwise_bias (N D : ℕ) (hN : 0 < N) (hND : N ≤ D)
     = (rnite ((j : ℝ) * 2 ^ N / 2 ^ D) : ℝ) / 2 ^ N
       - (j : ℝ) / 2 ^ D := by
   by_cases hk : ( rnite ( j * 2 ^ N / 2 ^ D ) ).toNat < 2 ^ N <;> simp_all +decide [ mul_div_left_comm ];
-  · convert congr_arg ( ( ↑ ) : ℕ → ℝ ) ( src_roundup_count N hN ( j / 2 ^ D ) ( by positivity ) ( by rw [ div_lt_iff₀ ( by positivity ) ] ; norm_cast; linarith ) ?_ ) using 1;
+  · convert congr_arg ( ( ↑ ) : ℕ → ℝ ) ( src_roundup_count N ( j / 2 ^ D ) ?_ ) using 1;
     · norm_num [ div_mul_eq_mul_div ];
       exact_mod_cast Eq.symm ( Int.toNat_of_nonneg ( show 0 ≤ rnite ( ( j : ℝ ) * 2 ^ N / 2 ^ D ) from by
                                                       unfold rnite; split_ifs <;> norm_num;
@@ -594,16 +610,23 @@ lemma src_pointwise_bias (N D : ℕ) (hN : 0 < N) (hND : N ≤ D)
       grind;
   · have h_eq : rnite (j * 2 ^ N / 2 ^ D : ℝ) = 2 ^ N := by
       refine' le_antisymm _ _;
-      · have := rnite_range N ( j * 2 ^ N / 2 ^ D ) ( by positivity ) ( by rw [ div_lt_iff₀ ( by positivity ) ] ; norm_cast; nlinarith [ pow_pos ( zero_lt_two' ℕ ) N, pow_le_pow_right₀ ( by decide : 1 ≤ 2 ) hND ] ) ; aesop;
+      · have h_lt : (j : ℝ) * 2 ^ N / 2 ^ D < 2 ^ N := by
+          rw [div_lt_iff₀ (by positivity)]
+          have hj' : (j : ℝ) < 2 ^ D := by exact_mod_cast hj
+          have hmul := mul_lt_mul_of_pos_left hj' (show (0 : ℝ) < 2 ^ N by positivity)
+          simpa [mul_comm, mul_left_comm, mul_assoc] using hmul
+        have := rnite_range N (j * 2 ^ N / 2 ^ D) (by positivity) h_lt
+        simp_all only
       · exact hk;
-    simp_all +decide [ mul_div_right_comm ];
-    norm_cast ; norm_num [ Finset.filter_true_of_mem ]
+    have hcount := src_roundup_count_overflow N ((j : ℝ) / 2 ^ D) (by
+      convert h_eq using 1 <;> ring)
+    simp_all +decide [mul_div_right_comm]
 
 /-
 The total bias of SRC, averaged over all 2^D finite-precision inputs, is exactly zero.
 This is the main result from §III-F: SRC is unbiased for finite-precision inputs.
 -/
-theorem src_exact_bias_finite_precision (N D : ℕ) (hN : 0 < N) (hND : N ≤ D) :
+theorem src_exact_bias_finite_precision (N D : ℕ) (hN : 0 < N) :
     (∑ j ∈ Finset.range (2 ^ D),
       (((Finset.range (2 ^ N)).filter
         (fun R => 2 ^ N ≤ (rnite (((j : ℝ) / 2 ^ D) * 2 ^ N)).toNat + R)).card
@@ -613,9 +636,9 @@ theorem src_exact_bias_finite_precision (N D : ℕ) (hN : 0 < N) (hND : N ≤ D)
   have h_sum : ∑ j ∈ Finset.range (2 ^ D), ((Finset.range (2 ^ N)).filter (fun R => 2 ^ N ≤ (rnite ((j : ℝ) / 2 ^ D * 2 ^ N)).toNat + R)).card / (2 : ℝ) ^ N - ∑ j ∈ Finset.range (2 ^ D), (j : ℝ) / 2 ^ D = ∑ j ∈ Finset.range (2 ^ D), ((rnite ((j : ℝ) * 2 ^ N / 2 ^ D) : ℝ) / 2 ^ N - (j : ℝ) / 2 ^ D) := by
     rw [ ← Finset.sum_sub_distrib ];
     refine Finset.sum_congr rfl fun j hj => ?_;
-    convert src_pointwise_bias N D hN hND j ( Finset.mem_range.mp hj ) using 1;
+    convert src_pointwise_bias N D j ( Finset.mem_range.mp hj ) using 1;
   simp_all +decide [ Finset.sum_sub_distrib ];
-  convert congr_arg ( fun x : ℝ => x / 2 ^ N ) ( rnite_unbiased_finite N D hN hND ) using 1 <;> norm_num [ Finset.sum_div _ _ _ ];
+  convert congr_arg ( fun x : ℝ => x / 2 ^ N ) ( rnite_unbiased_finite N D hN ) using 1 <;> norm_num [ Finset.sum_div _ _ _ ];
   norm_num [ sub_div, Finset.sum_div _ _ _ ];
   exact Finset.sum_congr rfl fun _ _ => by rw [ eq_div_iff ( by positivity ) ] ; ring;
 
@@ -625,7 +648,7 @@ theorem src_exact_bias_finite_precision (N D : ℕ) (hN : 0 < N) (hND : N ≤ D)
 The second moment of the SRC rounding error, averaged over R.
 For η' = k/2^N: E_R[ε²] = η'(1 - η').
 -/
-lemma src_second_moment (N : ℕ) (hN : 0 < N)
+lemma src_second_moment (N : ℕ)
     (k : ℕ) (hk : k < 2 ^ N) :
     (1 / (2 : ℝ) ^ N) *
       ((Finset.range (2 ^ N)).sum
@@ -633,11 +656,14 @@ lemma src_second_moment (N : ℕ) (hN : 0 < N)
                   then (1 - (k : ℝ) / (2 : ℝ) ^ N) ^ 2
                   else ((k : ℝ) / (2 : ℝ) ^ N) ^ 2))
     = ((k : ℝ) / (2 : ℝ) ^ N) * (1 - (k : ℝ) / (2 : ℝ) ^ N) := by
-  convert srf_second_moment N hN k hk using 1;
+  convert srf_second_moment N k hk using 1;
   convert rfl using 3 ; norm_num ; ring;
+  have hpow : (1 : ℕ) ≤ 2 ^ N := Nat.succ_le_of_lt (pow_pos (by decide) N)
   split_ifs <;> norm_num at * <;> norm_cast at *;
-  · rw [ div_add', div_add', le_div_iff₀ ] at * <;> norm_cast at * ; linarith [ Nat.pow_le_pow_right two_pos hN ];
-  · rw [ div_add', div_add', div_lt_iff₀ ] at * <;> norm_cast at * ; linarith [ Nat.pow_le_pow_right two_pos hN ]
+  · rw [ div_add', div_add', le_div_iff₀ ] at * <;> norm_cast at * ;
+    linarith [show (1 : ℝ) ≤ 2 ^ N by exact_mod_cast hpow]
+  · rw [ div_add', div_add', div_lt_iff₀ ] at * <;> norm_cast at * ;
+    linarith [show (1 : ℝ) ≤ 2 ^ N by exact_mod_cast hpow]
 
 /-
 The second moment of SRC error relative to the *true* input η (not η').
@@ -653,10 +679,9 @@ lemma src_variance_vs_true_input (_N : ℕ) (_hN : 0 < _N)
 
 /-
 For n independent SRC stochastic roundings with N random bits,
-applied to finite-precision inputs with D ≥ N excess bits,
 the RMS total error is at most √n / 2 ULPs.
 -/
-theorem src_summation_sqrt_n (n : ℕ) (N : ℕ) (hN : 0 < N)
+theorem src_summation_sqrt_n (n : ℕ) (N : ℕ)
     (ks : Fin n → ℕ) (hks : ∀ i, ks i < 2 ^ N)
     (err : Fin n → ℕ → ℝ)
     (herr : ∀ i R, err i R =
@@ -681,7 +706,7 @@ theorem src_summation_sqrt_n (n : ℕ) (N : ℕ) (hN : 0 < N)
       have h_var_single : ∀ i, (∑ R ∈ Finset.range (2 ^ N), (err i R) ^ 2) / (2 ^ N : ℝ) ≤ 1 / 4 := by
         intro i
         have h_var : (∑ R ∈ Finset.range (2 ^ N), (err i R) ^ 2) / (2 ^ N : ℝ) = (ks i : ℝ) / (2 ^ N : ℝ) * (1 - (ks i : ℝ) / (2 ^ N : ℝ)) := by
-          convert src_second_moment N hN ( ks i ) ( hks i ) using 1;
+          convert src_second_moment N ( ks i ) ( hks i ) using 1;
           grind
         exact h_var.symm ▸ by linarith [ sq_nonneg ( ( ks i : ℝ ) / 2 ^ N - 1 / 2 ) ] ;
       assumption

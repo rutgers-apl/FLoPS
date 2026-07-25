@@ -30,7 +30,7 @@ generate corresponding p3109, output to a file (ADT on paper format TBD)
 
 def decode_normal {f : p3109_format} (n : ℕ)
   (h0 : n < 2^(f.P+f.W-1))
-  (h1 : ¬(n = 2^(f.K-1) ∧ f.s = .signed))
+  (_h1 : ¬(n = 2^(f.K-1) ∧ f.s = .signed))
   (h2 : ¬(n = 2^f.K-1 ∧ f.s = .unsigned))
   (h3 : ¬(n = 2^(f.K-1)-1 ∧ f.s = .signed ∧ f.d = .extended))
   (h4 : ¬(n = 2^f.K-1 ∧ f.s = .signed ∧ f.d = .extended))
@@ -172,7 +172,7 @@ def decode_normal {f : p3109_format} (n : ℕ)
       -- almost there!
       suffices n < 2^(f.K-1)-1 by
         zify at this;
-        simp [Int.ofNat_sub] at this;
+        simp at this;
         omega
       omega
       apply ne_of_gt; simp
@@ -356,8 +356,8 @@ lemma n_to_p_negate {f : p3109_format} (n : ℕ) (hs : f.s = .signed) (hn : n �
   split_ifs <;> try omega;
   · simp [opp];
   · grind +ring;
-  · cases f ; simp_all +decide [ Nat.pow_succ' ];
-    cases ‹Domain› <;> simp_all +decide [ Nat.pow_succ' ];
+  · cases f ; simp_all +decide;
+    cases ‹Domain› <;> simp_all +decide;
     · lia;
     · rename_i k hk₁ hk₂ hk₃ hk₄ hk₅ hk₆ hk₇;
       grind +suggestions;
@@ -415,7 +415,7 @@ private lemma normal_p3109_to_bounds {m e : ℤ} (hm : 0 ≤ m) (hn : @normal_p3
   2^(f.P-1) ≤ m ∧ m < 2^f.P ∧ f.emin_lsb ≤ e ∧ e ≤ f.emax_lsb := by
   rcases hn with ⟨⟨hmlt, he1⟩, hmle, he2, _⟩
   simp at *; simp [to_format] at he1
-  simp [vnum, to_format, abs_mul] at hmlt hmle
+  simp [ vnum, to_format ] at hmlt hmle
   rw [abs_of_nonneg hm] at hmlt hmle
   refine ⟨?_, hmlt, he1, he2⟩
   have hp := f.h_P
@@ -592,7 +592,7 @@ theorem normal_pos_surj {m e : ℤ} (hs : f.s = .unsigned → 0 ≤ m) (hn : @no
     rw [Nat.sub_add_cancel (by omega)] at heeq ⊢
     cases f.d <;> simp; omega; omega
     have hk : ¬f.K=2 := by have _ := f.h_K; omega
-    simp [hpeq, hk]
+    simp [ hpeq ]
     simp [hpeq.1] at heeq
     omega
 
@@ -614,7 +614,7 @@ theorem normal_pos_surj {m e : ℤ} (hs : f.s = .unsigned → 0 ≤ m) (hn : @no
   have := hm3 (by omega) (by simp; apply he4; omega)
   simp at this
   have hp2 : ¬f.P=2 := by omega
-  simp [hp2, h_2] at this
+  simp [ h_2 ] at this
   rw [abs_of_nonneg h] at this
   simp [vnum, to_format, hm] at this
   cases hd:f.d  <;> simp [hd] at this
@@ -721,7 +721,7 @@ theorem normal_pos_surj {m e : ℤ} (hs : f.s = .unsigned → 0 ≤ m) (hn : @no
     simp at heeq
     expose_names
     have hk : ¬f.K=2 := by omega
-    simp [emax_lsb, emax, hpeq, h_5.2, W, hk]
+    simp [ emax_lsb, emax, hpeq, h_5.2, W ]
     rw [<-Nat.sub_add_cancel (n := f.K) (m := 1) (by omega)] at heeq
     simp [pow_add] at heeq
     rw [Int.mul_sub_ediv_right _ _ (by omega)] at heeq; simp at heeq
@@ -847,7 +847,7 @@ theorem normal_pos_surj {m e : ℤ} (hs : f.s = .unsigned → 0 ≤ m) (hn : @no
     zify at hmlt; simp at hmlt
     omega
   constructor
-  have := Int.ediv_add_emod m (2^(f.P-1))
+  have := Int.mul_ediv_add_emod m (2^(f.P-1))
   rewrite (occs := .pos [1]) [<-sub_add_cancel (a := m) (b := 2^(f.P-1))] at this
   rw [add_comm _ (2^(f.P-1))] at this
   rewrite (occs := .pos [2]) [<-one_mul (2^(f.P-1))] at this
@@ -866,12 +866,12 @@ theorem subnormal_pos_surj {m e : ℤ} (hs : f.s = .unsigned → 0 ≤ m) (hsub 
     cases f ; simp_all +decide [ p3109_format.to_format ];
     cases ‹ℕ› <;> simp_all +decide [ pow_succ' ] ; linarith;
   have h_subnormal : m.toNat < 2^(f.K-1) := by
-    cases f ; simp_all +decide [ pow_succ' ];
+    cases f ; simp_all +decide;
     cases ‹Signedness› <;> cases ‹Domain› <;> simp_all +decide [ p3109_format.to_format ];
     · exact h_subnormal.trans_le ( pow_le_pow_right₀ ( by decide ) ( Nat.sub_le_sub_right ( by linarith [ ‹ ( _ : ℕ ) > 0 ∧ ( Signedness.signed = Signedness.signed → _ ) ∧ _›.2.1 rfl ] ) _ ) );
     · exact h_subnormal.trans_le ( pow_le_pow_right₀ ( by decide ) ( Nat.sub_le_sub_right ( by linarith [ ‹ ( _ : ℕ ) > 0 ∧ ( Signedness.signed = Signedness.signed → _ ) ∧ _›.2.1 rfl ] ) _ ) );
     · exact h_subnormal.trans_le ( pow_le_pow_right₀ ( by decide ) ( Nat.sub_le_sub_right ( by tauto ) _ ) );
-    · exact h_subnormal.trans_le ( pow_le_pow_right₀ ( by decide ) ( Nat.sub_le_sub_right ( by aesop ) _ ) );
+    · exact h_subnormal.trans_le ( pow_le_pow_right₀ ( by decide ) ( Nat.sub_le_sub_right ( by simp_all only ) _ ) );
   simp +zetaDelta at *;
   split_ifs <;> norm_cast at * <;> simp_all +decide;
   any_goals linarith [ Int.toNat_of_nonneg hle ];
@@ -956,7 +956,7 @@ theorem finite_surj {x : p3109 f} :
         · exact neg_nonneg_of_nonpos h_nonneg.le;
       obtain ⟨n, hn⟩ : ∃ n : Fin (2^f.K), @n_to_p3109 f n = y := by
         apply finite_surj_pos;
-        · cases y <;> aesop;
+        · cases y <;> (simp_all only [not_le]; obtain ⟨left, right⟩ := hy; subst left; exact hx_finite)
         · exact hy.2;
       by_cases hn_zero : n.val < 2^(f.K-1);
       · have := @n_to_p_negate f n.val h (by
@@ -968,7 +968,7 @@ theorem finite_surj {x : p3109 f} :
         · subst hn; simp_all +decide [ opp ] ;
           lia) hn_zero
         generalize_proofs at *;
-        aesop;
+        subst hn; simp_all only [not_le, Fin.eta, exists_apply_eq_apply]
       · use ⟨n.val - 2^(f.K-1), by
           exact lt_of_le_of_lt ( Nat.sub_le _ _ ) n.2⟩
         generalize_proofs at *;
@@ -976,7 +976,7 @@ theorem finite_surj {x : p3109 f} :
           cases lt_or_eq_of_le ( le_of_not_gt hn_zero ) <;> simp_all +decide [ Nat.sub_eq_iff_eq_add ];
           · linarith;
           · unfold n_to_p3109 at hn; simp_all +decide ;
-            cases hy.1 ; aesop ) ( by
+            cases hy.1 ; subst hn; simp_all only [true_and]; exact hx_finite ) ( by
           rw [ tsub_lt_iff_left ] <;> try linarith;
           rw [ ← two_mul, ← pow_succ', Nat.sub_add_cancel ( Nat.one_le_iff_ne_zero.mpr <| by linarith [ f.h_K ] ) ] ; exact n.2 )
         generalize_proofs at *;
@@ -985,7 +985,7 @@ theorem finite_surj {x : p3109 f} :
   · have : f.s = .unsigned := by
       exact Or.resolve_left ( by cases f.s <;> tauto ) h;
     have := @finite_surj_pos f;
-    cases x <;> aesop
+    cases x <;> aesop?
 
 theorem bi_surj : Function.Surjective (@n_to_p3109 f) := by
   intro x; rcases x with ( _ | _ | _ ) ;
@@ -1013,7 +1013,7 @@ theorem bi_surj : Function.Surjective (@n_to_p3109 f) := by
     · use ⟨2^(f.K-1), by
         exact pow_lt_pow_right₀ ( by decide ) ( Nat.pred_lt ( ne_bot_of_gt f.h_K ) )⟩
       generalize_proofs at *;
-      unfold n_to_p3109; aesop;
+      unfold n_to_p3109; simp_all only [and_self, ↓reduceDIte]
     · cases h : f.s <;> simp_all +decide [ n_to_p3109 ];
       use ⟨ 2 ^ f.K - 1, by
         exact Nat.sub_lt ( by norm_num ) ( by norm_num ) ⟩

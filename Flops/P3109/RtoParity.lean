@@ -53,7 +53,11 @@ lemma max_finite_fnum_even_signed_extended :
     Even (@max_finite f).fnum := by
       intros hs hd hp
       have h_sub : (@max_finite f).fnum = @vnum 2 f.to_format - 2 := by
-        unfold max_finite; aesop;
+        unfold max_finite;
+        simp_all only
+        split
+        next h => simp_all only [lt_self_iff_false]
+        next h => rfl
       generalize_proofs at *;
       simp_all +decide [ vnum ];
       exact even_iff_two_dvd.mpr ( dvd_pow_self _ ( by linarith [ f.to_format.precpos ] ) )
@@ -79,7 +83,7 @@ lemma min_finite_fnum_even_unsigned :
     Even (@min_finite f).fnum := by
       intro h
       unfold min_finite
-      simp [h, fnum]
+      simp only [fnum, h, ↓reduceDIte, Even.zero]
 
 /-
 min_finite has odd fnum for signed finite format.
@@ -90,10 +94,13 @@ lemma min_finite_fnum_odd_signed_finite :
     Odd (@min_finite f).fnum := by
       intro hs hd
       have h_max_finite : Odd (@max_finite f).fnum := by
-        exact?;
+        exact max_finite_fnum_odd_signed_finite hs hd;
       convert h_max_finite.neg using 1;
       unfold min_finite;
-      cases h : @max_finite f <;> aesop
+      cases h : @max_finite f
+      · simp_all only [reduceCtorEq]
+      · simp_all only [reduceCtorEq, ↓reduceDIte]; rfl
+      · simp_all only [reduceCtorEq, ↓reduceDIte]; rfl
 
 /-
 min_finite has even fnum for signed extended format with P > 1.
@@ -105,7 +112,7 @@ lemma min_finite_fnum_even_signed_extended :
     Even (@min_finite f).fnum := by
       intro hs hd hP
       have h_even : Even (@max_finite f).fnum := by
-        exact?;
+        exact max_finite_fnum_even_signed_extended hs hd hP;
       unfold min_finite;
       cases h : @max_finite f ; simp_all +decide [ parity_simps ];
       · grind;

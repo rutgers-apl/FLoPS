@@ -85,14 +85,14 @@ theorem round_fp_to_odd_fnum_odd_P_gt_1 (x : ℝ) :
     Odd (@round_fp format (@to_odd format) x).fnum := by
       intro h1 h2 h3
       have h_fract_sm : Int.fract (@scaled_mantissa format x) ≠ 0 := by
-        exact?
+        exact fract_scaled_mantissa_ne_zero_of_not_representable x h2 h3
       have h_abs_sm : |@scaled_mantissa format x| < @vnum 2 format := by
         convert scaled_mantissa_bounded x using 1;
         unfold vnum; norm_num;
       have h_abs_odd : |@to_odd format (@fexp_real' format x) (@scaled_mantissa format x)| < @vnum 2 format := by
-        exact?
+        exact to_odd_abs_lt_vnum (fexp_real' x) (scaled_mantissa x) h1 h_fract_sm h_abs_sm
       have h_odd : Odd (@to_odd format (@fexp_real' format x) (@scaled_mantissa format x)) := by
-        exact?;
+        exact to_odd_odd_of_fract_ne_zero (fexp_real' x) (scaled_mantissa x) h1 h_fract_sm;
       unfold round_fp; simp +decide [ round_fp_ne0, h2 ] ;
       grind
 
@@ -132,11 +132,25 @@ lemma round_fp_ne0_to_odd_P1_fnum (x : ℝ) :
         apply to_odd_P1_in_set;
         · exact h₀;
         · exact fun h => h₂ <| h.symm ▸ by norm_num;
-        · exact?;
+        · exact fract_abs_ne_zero_of_fract_ne_zero (scaled_mantissa x) h₂;
         · convert scaled_mantissa_bounded x using 1;
           norm_num [ vnum ];
       unfold round_fp_ne0;
-      unfold vnum; aesop;
+      unfold vnum;
+      simp_all only [ne_eq, Int.reduceNeg, pow_one, Nat.cast_ofNat]
+      cases h_to_odd with
+      | inl h => simp_all only [abs_one, OfNat.one_ne_ofNat, ↓reduceIte, Int.reduceNeg, reduceCtorEq, or_false]
+      | inr h_1 =>
+        cases h_1 with
+        | inl h => simp_all only [Int.reduceNeg, abs_neg, abs_one, OfNat.one_ne_ofNat, ↓reduceIte, reduceCtorEq, or_true]
+        | inr h_2 =>
+          cases h_2 with
+          | inl h =>
+            simp_all only [Nat.abs_ofNat, ↓reduceIte, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, Int.ediv_self,
+              Int.reduceNeg, reduceCtorEq, or_false]
+          | inr h_1 =>
+            simp_all only [Int.reduceNeg, abs_neg, Nat.abs_ofNat, ↓reduceIte, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true,
+              Int.neg_ediv_self, reduceCtorEq, or_true]
 
 /-- round_fp to_odd produces odd fnum when P = 1 and x is non-representable and nonzero. -/
 theorem round_fp_to_odd_fnum_odd_P_eq_1 (x : ℝ) :
@@ -146,8 +160,8 @@ theorem round_fp_to_odd_fnum_odd_P_eq_1 (x : ℝ) :
     Odd (@round_fp format (@to_odd format) x).fnum := by
   intro hp hx hne
   have hfr := fract_scaled_mantissa_ne_zero_of_not_representable x hx hne
-  simp [round_fp, hx]
-  rcases round_fp_ne0_to_odd_P1_fnum x hp hx hfr with h|h <;> simp [h]
+  simp only [round_fp, hx, ↓reduceIte]
+  rcases round_fp_ne0_to_odd_P1_fnum x hp hx hfr with h|h <;> simp only [h, odd_one, Int.reduceNeg, odd_neg]
 
 /-- round_fp with to_odd produces odd fnum for non-representable nonzero values. -/
 theorem round_fp_to_odd_fnum_odd (x : ℝ) :

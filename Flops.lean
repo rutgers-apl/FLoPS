@@ -1,6 +1,6 @@
 -- This module serves as the root of the `Flops` library.
 -- Import modules here that should be built as part of the library.
--- correctness guarantee
+-- Correctness guarantees
 import Flops.P3109.Bijection
 import Flops.P3109.RoundTrip
 -- Rounding properties
@@ -11,9 +11,9 @@ import Flops.P3109.RoundingProjection
 import Flops.P3109.Sterbenz
 import Flops.P3109.Fast2Sum
 import Flops.P3109.Fast2SumSat
-import Flops.P3109.Scalar
---
-import Flops.P3109.KApproximate
+import Flops.P3109.ExtractScalar
+-- Executable bit-level semantics and refinement proofs
+import Flops.P3109.Exec
 import Lean
 
 def tofile : IO Unit := do

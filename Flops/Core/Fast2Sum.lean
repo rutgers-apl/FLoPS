@@ -1,7 +1,8 @@
 import Flops.Core.Defs
 import Flops.Core.Rounding
-
-import Mathlib
+import Mathlib.Algebra.Order.Field.Power
+import Mathlib.Data.Multiset.Basic
+import Mathlib.Tactic
 
 variable {format : Format}
 variable {β : ℕ} (hβ : β > 1)
@@ -16,6 +17,7 @@ variable
   (rounddown_axiom : ∀ x : ℝ, @rounddown _ format x (rnddown x))
 include roundup_axiom rounddown_axiom
 
+omit hβ roundup_axiom rounddown_axiom in
 theorem roundup_det (x : ℝ) (f g : float β) :
   @roundup _ format x f →
   @roundup _ format x g →
@@ -31,6 +33,7 @@ theorem roundup_det (x : ℝ) (f g : float β) :
   assumption
   assumption
 
+omit hβ roundup_axiom rounddown_axiom in
 theorem rounddown_det (x : ℝ) (f g : float β) :
   @rounddown _ format x f →
   @rounddown _ format x g →
@@ -46,31 +49,33 @@ theorem rounddown_det (x : ℝ) (f g : float β) :
   assumption
   assumption
 
+omit hβ roundup_axiom rounddown_axiom in
 lemma rw_tonat (b : ℕ) (e : ℤ) :
   e ≥ 0 →
   b > 1 →
   b ^ e.toNat = (b ^ e : ℝ) := by
   intros
-  have H : ∀ (e : ℕ), b ^ e = (b ^ (e : ℤ) : ℝ) := by simp
+  have H : ∀ (e : ℕ), b ^ e = (b ^ (e : ℤ) : ℝ) := by simp only [zpow_natCast, implies_true]
   rw [H, zpow_right_inj₀]
-  simp
+  simp only [Int.ofNat_toNat, sup_eq_left]
   assumption
-  repeat {simp; omega}
+  repeat {simp only [Nat.cast_pos, ne_eq, Nat.cast_eq_one]; omega}
 
+omit hβ roundup_axiom rounddown_axiom in
 lemma mem_or : e ∈ ({a, b} : Multiset α) ↔ e = a ∨ e = b := by
   apply Iff.intro
   . intro Hmem
     cases Hmem with
-    | head => simp
+    | head => simp only [true_or]
     | tail _ Hsin =>
       have Hsin' : e ∈ ([b] : List α) := by assumption
       rw [List.mem_singleton] at Hsin'
       right; assumption
   . intro Hor
     cases Hor
-    simp
+    simp only [Multiset.insert_eq_cons, Multiset.mem_cons, Multiset.mem_singleton]
     left; assumption
-    simp
+    simp only [Multiset.insert_eq_cons, Multiset.mem_cons, Multiset.mem_singleton]
     right; assumption
 
 /-
@@ -117,6 +122,7 @@ lemma mem_or : e ∈ ({a, b} : Multiset α) ↔ e = a ∨ e = b := by
 
 -- so I think the following helper lemmas are there just because we didn't have rounding as functions yet
 
+omit rounddown_axiom in
 lemma helper_roundup_m (m : ℝ) (s : float β) :
   s = rndup (m * β ^ s.exp) →
   s.fnum = ⌈m⌉ := by
@@ -140,18 +146,18 @@ lemma helper_roundup_m (m : ℝ) (s : float β) :
   have Hcarry_bounded : @bounded_float _ format carry_neg := by
     apply And.intro
     unfold carry_neg vnum
-    simp
+    simp only [abs_neg, abs_pow, Nat.abs_cast, Nat.cast_pow]
     apply pow_lt_pow_right₀
-    simp
+    simp only [Nat.one_lt_cast]
     exact hβ
-    simp
+    simp only [tsub_lt_self_iff, zero_lt_one, and_true]
     exact (format.precpos)
     unfold carry_neg
-    simp
+    simp only
     omega
   have Heq_neg : to_real carry_neg = - @vnum β format * β ^ s.exp := by
     unfold to_real carry_neg vnum
-    simp
+    simp only [Int.cast_neg, Int.cast_pow, Int.cast_natCast, neg_mul, Nat.cast_pow, neg_inj]
     rw [zpow_add₀, mul_comm (β ^ s.exp : ℝ), <-mul_assoc]
     norm_cast
     rw [<-pow_add, Nat.sub_add_cancel]
@@ -172,9 +178,9 @@ lemma helper_roundup_m (m : ℝ) (s : float β) :
     have Hcarryge : (carry_neg : ℝ) ≥ r := by
       rw [Heq_neg]
       unfold r
-      simp [<-neg_mul]
+      simp only [ge_iff_le]
       refine mul_le_mul_of_nonneg_right H2 ?_
-      apply zpow_nonneg; simp
+      apply zpow_nonneg; simp only [Nat.cast_nonneg]
 
     let Hs := Hforall carry_neg Hcarry_bounded Hcarryge
     rw [Heq_neg, to_real] at Hs
@@ -187,7 +193,7 @@ lemma helper_roundup_m (m : ℝ) (s : float β) :
     rw [<-Int.le_sub_one_iff, abs_le]
     apply And.intro
     let _ := Int.lt_ceil.mpr Hmbound.2
-    simp [Int.le_sub_one_iff]
+    simp only [neg_sub, tsub_le_iff_right, ge_iff_le]
     omega
     let _ := Int.ceil_le.mpr Hmbound.1
     norm_cast
@@ -197,13 +203,13 @@ lemma helper_roundup_m (m : ℝ) (s : float β) :
     rw [Hceil]
     apply And.intro <;> try assumption
   have Hceilge : (ceil : ℝ) ≥ r := by
-    simp [Hceil, r, to_real]
+    simp only [to_real, Hceil, ge_iff_le, r]
     refine mul_le_mul_of_nonneg_right ?_ ?_
     apply Int.le_ceil
     apply βexpnonneg hβ
   let Hge := Hforall ceil Hceilbounded Hceilge
   have _ : ⌈m⌉ ≥ s.fnum := by
-    simp [Hceil, r, to_real] at Hge
+    simp only [to_real, Hceil, ge_iff_le] at Hge
     rify
     apply le_of_mul_le_mul_right Hge
     apply βexppos hβ
@@ -217,7 +223,7 @@ lemma helper_roundup_m (m : ℝ) (s : float β) :
     rcases this with Hlt | Hlt
     exfalso
     revert Hlt
-    simp
+    simp only [imp_false, not_lt]
     apply le_trans Hle'
     rify at Hand
     apply Hand.1
@@ -226,13 +232,13 @@ lemma helper_roundup_m (m : ℝ) (s : float β) :
     have Hcarryge : (carry_neg : ℝ) ≥ r := by
       rw [Heq_neg]
       unfold r
-      simp [<-neg_mul]
+      simp only [ge_iff_le]
       refine mul_le_mul_of_nonneg_right Hle ?_
-      apply zpow_nonneg; simp
+      apply zpow_nonneg; simp only [Nat.cast_nonneg]
     have := Hforall _ Hcarry_bounded Hcarryge
     revert this
-    simp [Heq_neg]
-    simp [to_real, <-neg_mul]
+    simp only [Heq_neg, neg_mul, ge_iff_le, imp_false, not_le]
+    simp only [← neg_mul, to_real]
     refine mul_lt_mul_of_pos_right ?_ ?_
     norm_cast
     omega
@@ -244,27 +250,28 @@ lemma helper_roundup_m (m : ℝ) (s : float β) :
     have Hceilbounded : @bounded_float β format ceil := by
       rw [Hceil]
       apply And.intro
-      simp [abs_lt]
+      simp only [abs_lt]
       apply And.intro
       rw [Int.lt_ceil]
-      simp
+      simp only [Int.cast_neg, Int.cast_natCast]
       assumption
       omega
-      simp
+      simp only
       assumption
     have Hceilge : (ceil : ℝ) ≥ r := by
-      simp [Hceil, r, to_real]
+      simp only [to_real, Hceil, ge_iff_le, r]
       refine mul_le_mul_of_nonneg_right ?_ ?_
       apply Int.le_ceil
       apply βexpnonneg hβ
     let Hge := Hforall ceil Hceilbounded Hceilge
     have _ : ⌈m⌉ ≥ s.fnum := by
-      simp [Hceil, r, to_real] at Hge
+      simp only [to_real, Hceil, ge_iff_le] at Hge
       rify
       apply le_of_mul_le_mul_right Hge
       apply βexppos hβ
     omega
 
+omit rounddown_axiom in
 lemma helper_roundup_exp (m : ℝ) (e : ℤ):
   β = 2 →
   s = rndup (m * β ^ e) →
@@ -286,7 +293,7 @@ lemma helper_roundup_exp (m : ℝ) (e : ℤ):
         exact h.symm ▸ this.2.1;
       have h_contra : (s.fnum : ℝ) * β ^ (s.exp - e) = ⌈m⌉ := by
         have h_contra : (s.fnum : ℝ) * β ^ (s.exp - e) ≥ m ∧ (s.fnum : ℝ) * β ^ (s.exp - e) ≤ ⌈m⌉ := by
-          unfold to_real at *; simp_all +decide [ zpow_sub₀, show β ≠ 0 by linarith ] ;
+          unfold to_real at *; simp_all +decide [ zpow_sub₀ ] ;
           field_simp;
           lia;
         have h_contra : ∃ k : ℤ, (s.fnum : ℝ) * β ^ (s.exp - e) = k := by
@@ -301,6 +308,7 @@ lemma helper_roundup_exp (m : ℝ) (e : ℤ):
     have := canonical_least_exp ( β := β ) ( format := format ) ( hβ := hβ ) hs_canonical hs_bounded;
     exact not_lt_of_ge ( this h_contra ) hs_eq_rndup
 
+omit roundup_axiom in
 lemma helper_rounddown_m (m : ℝ) (s : float β) :
   s = rnddown (m * β ^ s.exp) →
   s.fnum = ⌊m⌋ := by
@@ -325,18 +333,18 @@ lemma helper_rounddown_m (m : ℝ) (s : float β) :
   have Hcarry_bounded : @bounded_float _ format carry := by
     apply And.intro
     unfold carry vnum
-    simp
+    simp only [abs_pow, Nat.abs_cast, Nat.cast_pow]
     apply pow_lt_pow_right₀
-    simp
+    simp only [Nat.one_lt_cast]
     exact hβ
-    simp
+    simp only [tsub_lt_self_iff, zero_lt_one, and_true]
     exact (format.precpos)
     unfold carry
-    simp
+    simp only
     omega
   have Heq_neg : to_real carry = @vnum β format * β ^ s.exp := by
     unfold to_real carry vnum
-    simp
+    simp only [Int.cast_pow, Int.cast_natCast, Nat.cast_pow]
     rw [zpow_add₀, mul_comm (β ^ s.exp : ℝ), <-mul_assoc]
     norm_cast
     rw [<-pow_add, Nat.sub_add_cancel]
@@ -349,17 +357,17 @@ lemma helper_rounddown_m (m : ℝ) (s : float β) :
   have _ := Int.le_floor.mpr Hle'
   have : ⌊m⌋ ≤ s.fnum := by
     have := Hforall ⟨⌊m⌋, s.exp⟩ ?_ ?_
-    simp [to_real] at this
+    simp only [to_real] at this
     rify
     apply le_of_mul_le_mul_right (a := (β ^ s.exp : ℝ))
     exact this
     apply βexppos hβ
     apply And.intro
-    simp
+    simp only
     exact Int.lt_of_le_sub_one Hle
-    simp
+    simp only
     assumption
-    simp [to_real, Hr]
+    simp only [to_real, Hr]
     refine (mul_le_mul_iff_of_pos_right ?_).mpr ?_
     apply βexppos hβ
     exact Int.floor_le m
@@ -370,12 +378,12 @@ lemma helper_rounddown_m (m : ℝ) (s : float β) :
   intro Hle
   rcases Hle with Hle | Hle
   exfalso
-  simp [Int.le_floor] at Hle
+  simp only [Int.le_floor, Int.cast_natCast] at Hle
   rw [Int.le_sub_one_iff] at Hand
   have : @vnum β format ≤ s.fnum := by
     have := Hforall carry Hcarry_bounded ?_
-    simp [Heq_neg] at this
-    simp [to_real] at this
+    simp only [Heq_neg] at this
+    simp only [to_real] at this
     rify
     apply le_of_mul_le_mul_right (a := (β ^ s.exp : ℝ))
     exact this
@@ -391,7 +399,7 @@ lemma helper_rounddown_m (m : ℝ) (s : float β) :
   exfalso
   have := lt_of_le_of_lt Hle' this
   revert this
-  simp
+  simp only [lt_neg_add_iff_add_lt, imp_false, not_lt]
   norm_cast
   omega
 
@@ -429,7 +437,8 @@ lemma helper (m : ℝ) (s : float β) :
   s ∈ ({rndup (m * β ^ s.exp), rnddown (m * β ^ s.exp)} : Multiset (float β)) →
   s.fnum = ⌊m⌋ ∨ s.fnum = ⌈m⌉ := by
     have h_mem : s ∈ ({rndup (m * β ^ s.exp), rnddown (m * β ^ s.exp)} : Multiset (float β)) → s = rndup (m * β ^ s.exp) ∨ s = rnddown (m * β ^ s.exp) := by
-      aesop;
+      intro a
+      simp_all only [gt_iff_lt, Multiset.insert_eq_cons, Multiset.mem_cons, Multiset.mem_singleton]
     intro hs
     obtain h | h := h_mem hs;
     · apply Or.inr;
@@ -458,9 +467,10 @@ lemma lemma24 (f g s : float β) :
         rw [ div_eq_iff ( by positivity ) ];
         rw [ add_mul, mul_assoc, mul_assoc, ← zpow_natCast, ← zpow_natCast, ← zpow_add₀ ( by positivity ), ← zpow_add₀ ( by positivity ) ] ; norm_num [ Int.toNat_of_nonneg ( sub_nonneg.mpr ( le_trans hs_exp ( min_le_left _ _ ) ) ), Int.toNat_of_nonneg ( sub_nonneg.mpr ( le_trans hs_exp ( min_le_right _ _ ) ) ) ]
       exact h_eq.symm ▸ by norm_cast;
-    cases' hs_int with M hM; simp_all +decide [ div_eq_iff, zpow_ne_zero ] ;
-    unfold to_real at *; rw [ div_eq_iff ( by positivity ) ] at hM; simp_all +decide [ mul_comm ] ;
+    cases' hs_int with M hM; simp_all +decide ;
+    unfold to_real at *; rw [ div_eq_iff ( by positivity ) ] at hM; simp_all +decide ;
 
+omit roundup_axiom rounddown_axiom in
 lemma sum_mantissa_bound (f g : float β) :
   β = 2 →
   @bounded_float _ format f → @bounded_float _ format g →
@@ -479,6 +489,7 @@ lemma sum_mantissa_bound (f g : float β) :
     rw [ div_le_iff₀ ( by positivity ) ];
     exact h_triangle.trans ( by rw [ zpow_add₀ ( by positivity ), zpow_one ] ; nlinarith [ show ( 2 : ℝ ) ^ f.exp ≥ 2 ^ g.exp by exact zpow_le_zpow_right₀ ( by norm_num ) hfg, show ( 2 : ℝ ) ^ format.precision ≥ 1 by exact one_le_pow₀ ( by norm_num ) ] )
 
+omit roundup_axiom rounddown_axiom in
 lemma sum_ceil_bounded (f g : float β) :
   β = 2 →
   @bounded_float _ format f → @bounded_float _ format g →
@@ -486,12 +497,13 @@ lemma sum_ceil_bounded (f g : float β) :
   @bounded_float β format ⟨⌈((f : ℝ) + g) / ((β : ℝ) ^ (f.exp + 1))⌉, f.exp + 1⟩ := by
     intro hβ hf hg hfg
     have h_mantissa_bound : |((f : ℝ) + g) / ((β : ℝ) ^ (f.exp + 1))| ≤ @vnum β format - 1 := by
-      exact?;
+      (expose_names; exact sum_mantissa_bound hβ_1 f g hβ hf hg hfg);
     constructor;
     · rw [ abs_lt ];
       constructor <;> push_cast [ ← @Int.cast_lt ℝ ] <;> linarith [ abs_le.mp h_mantissa_bound, Int.ceil_lt_add_one ( ( to_real f + to_real g ) / β ^ ( f.exp + 1 ) ), Int.le_ceil ( ( to_real f + to_real g ) / β ^ ( f.exp + 1 ) ) ];
     · exact Int.le_of_lt_add_one ( by linarith [ hf.2 ] )
 
+omit roundup_axiom rounddown_axiom in
 lemma sum_floor_bounded (f g : float β) :
   β = 2 →
   @bounded_float _ format f → @bounded_float _ format g →
@@ -526,8 +538,9 @@ lemma Hsexp (f g : float β) :
       · have := @helper_rounddown_exp;
         convert this ‹_› rndup rnddown roundup_axiom rounddown_axiom ( ( to_real f + to_real g ) / ( β : ℝ ) ^ ( f.exp + 1 ) ) ( f.exp + 1 ) hβ _ hs' _ using 1;
         · rw [ div_mul_cancel₀ _ ( by positivity ) ];
-        · exact?;
-    · aesop
+        · (expose_names; exact sum_floor_bounded hβ_1 f g hβ hf hg hfg);
+    · subst hβ
+      simp_all only [gt_iff_lt, Nat.one_lt_ofNat, Multiset.insert_eq_cons, Multiset.mem_cons, Multiset.mem_singleton]
 
 /-
 Case 1: when s.exp ≤ g.exp, the sum is exact
@@ -539,7 +552,13 @@ lemma lemma25_case1 (f g : float β) :
   s.exp ≤ g.exp →
   ∃(z : float β), (z : ℝ) = s - f ∧ @bounded_float _ format z := by
     have := @lemma24;
-    intro hg hs hfg hsg; specialize this hβ rndup rnddown roundup_axiom rounddown_axiom f g s hs ( by aesop ) ; aesop;
+    intro hg hs hfg hsg; specialize this hβ rndup rnddown roundup_axiom rounddown_axiom f g s hs ( by simp_all only [gt_iff_lt, Multiset.insert_eq_cons, Multiset.mem_cons, Multiset.mem_singleton, le_inf_iff, and_imp,
+      forall_eq_or_imp, forall_eq, ge_iff_le, inf_of_le_right] ) ;
+    simp_all only [gt_iff_lt, Multiset.insert_eq_cons, Multiset.mem_cons, Multiset.mem_singleton, ge_iff_le,
+      add_sub_cancel_left]
+    cases hs with
+    | inl h => subst h; exact ⟨_, ⟨rfl, hg⟩⟩
+    | inr h_1 => subst h_1; exact ⟨_, ⟨rfl, hg⟩⟩
 
 /-
 Case 2a: g.exp < s.exp ≤ f.exp
@@ -563,9 +582,10 @@ lemma lemma25_case2a (f g : float β) :
           rw [ div_mul_cancel₀ _ ( by positivity ) ];
         simp_all +decide [ to_real ];
         rw [ show ( f.fnum * 2 ^ f.exp + g.fnum * 2 ^ g.exp : ℝ ) / 2 ^ ( rndup ( f.fnum * 2 ^ f.exp + g.fnum * 2 ^ g.exp ) |> float.exp ) = f.fnum * 2 ^ ( f.exp - ( rndup ( f.fnum * 2 ^ f.exp + g.fnum * 2 ^ g.exp ) |> float.exp ) ) + g.fnum * 2 ^ ( g.exp - ( rndup ( f.fnum * 2 ^ f.exp + g.fnum * 2 ^ g.exp ) |> float.exp ) ) from ?_ ];
-        · rw [ ← Int.toNat_of_nonneg ( sub_nonneg.mpr hs' ) ] ; norm_cast ; simp +decide [ Int.ceil_add_intCast ] ;
-          norm_num [ Int.ceil_eq_iff ];
-          exact ⟨ by linarith [ Int.ceil_lt_add_one ( ( g.fnum : ℝ ) * 2 ^ ( g.exp - ( rndup ( f.fnum * 2 ^ f.exp + g.fnum * 2 ^ g.exp ) |> float.exp ) ) ) ], Int.le_ceil _ ⟩;
+        · rw [ ← Int.toNat_of_nonneg ( sub_nonneg.mpr hs' ) ] ; norm_cast ; simp +decide ;
+          rw [ show ( f.fnum : ℝ ) * 2 ^ ( f.exp - ( rndup ( f.fnum * 2 ^ f.exp + g.fnum * 2 ^ g.exp ) |> float.exp ) ).toNat = ( f.fnum * 2 ^ ( f.exp - ( rndup ( f.fnum * 2 ^ f.exp + g.fnum * 2 ^ g.exp ) |> float.exp ) ).toNat : ℤ ) by norm_num ];
+          rw [ Int.ceil_intCast_add ];
+          rw [ max_eq_left ( sub_nonneg.mpr hs' ) ];
         · norm_num [ zpow_sub₀, zpow_add₀ ] ; ring;
       refine' ⟨ ⟨ m, ( rndup ( to_real f + to_real g ) |> float.exp ) ⟩, _, _ ⟩ <;> simp_all +decide [ to_real ];
       · rw [ show ( f.exp : ℤ ) = ( f.exp - ( rndup ( f.fnum * 2 ^ f.exp + g.fnum * 2 ^ g.exp ) |> float.exp ) ) + ( rndup ( f.fnum * 2 ^ f.exp + g.fnum * 2 ^ g.exp ) |> float.exp ) by ring ] ; norm_num [ zpow_add₀, zpow_sub₀ ] ; ring;
@@ -601,7 +621,7 @@ lemma lemma25_case2a (f g : float β) :
           all_goals norm_cast;
           rw [ div_mul_cancel₀ _ ( by positivity ) ];
         have h_mantissa : (to_real f + to_real g) / ((2 : ℝ) ^ (rnddown (to_real f + to_real g)).exp) = f.fnum * 2 ^ (f.exp - (rnddown (to_real f + to_real g)).exp).toNat + g.fnum * 2 ^ (g.exp - (rnddown (to_real f + to_real g)).exp) := by
-          rw [ div_eq_iff ( by positivity ) ] ; norm_cast ; simp +decide [ *, pow_add, pow_sub ] ; ring;
+          rw [ div_eq_iff ( by positivity ) ] ; norm_cast ; simp +decide [ * ] ; ring;
           simp +decide [ to_real, mul_assoc, ← zpow_natCast, ← zpow_add₀, show ( 2 : ℝ ) ≠ 0 by norm_num ] ; ring;
           rw [ max_eq_left ] <;> norm_num [ to_real ] at * ; linarith!;
         have h_mantissa : ⌊(to_real f + to_real g) / ((2 : ℝ) ^ (rnddown (to_real f + to_real g)).exp)⌋ = f.fnum * 2 ^ (f.exp - (rnddown (to_real f + to_real g)).exp).toNat + ⌊(g.fnum : ℝ) * 2 ^ (g.exp - (rnddown (to_real f + to_real g)).exp)⌋ := by
@@ -630,6 +650,7 @@ lemma lemma25_case2a (f g : float β) :
 /-
 Helper: bound on y = g.fnum * 2^(g.exp - f.exp - 1)
 -/
+omit hβ roundup_axiom rounddown_axiom in
 lemma case2b_y_bound (f g : float β) :
   β = 2 →
   @bounded_float _ format g →
@@ -644,6 +665,7 @@ lemma case2b_y_bound (f g : float β) :
 /-
 Roundup case of mantissa bound
 -/
+omit rounddown_axiom in
 lemma case2b_mantissa_bound_up (f g : float β) :
   β = 2 →
   @bounded_float _ format f → @bounded_float _ format g →
@@ -655,7 +677,7 @@ lemma case2b_mantissa_bound_up (f g : float β) :
     have hs_fnum : s.fnum = ⌈((f : ℝ) + g) / ((β : ℝ) ^ (f.exp + 1))⌉ := by
       rw [ ← hs_exp ];
       have := @helper_roundup_m;
-      convert this ‹_› rndup rnddown roundup_axiom rounddown_axiom _ _ _ using 1;
+      convert this ‹_› rndup roundup_axiom _ _ _ using 1;
       rw [ div_mul_cancel₀ _ ( by positivity ), hs ];
     -- Substitute the expressions for (f:ℝ) and (g:ℝ) into the equation for s.fnum.
     have hs_fnum_subst : s.fnum = ⌈(f.fnum / 2 + g.fnum * (2 : ℝ) ^ (g.exp - f.exp - 1))⌉ := by
@@ -685,7 +707,7 @@ lemma case2b_mantissa_bound_down (f g : float β) :
     have h_s_fnum : s.fnum = ⌊((f.fnum : ℝ) / 2 + (g.fnum : ℝ) * (2 : ℝ) ^ (g.exp - f.exp - 1))⌋ := by
       have h_s_fnum : s.fnum = ⌊((to_real f + to_real g) / (2 : ℝ) ^ s.exp)⌋ := by
         have := @helper_rounddown_m;
-        convert this ‹_› rndup rnddown roundup_axiom rounddown_axiom _ _ _ using 1;
+        convert this ‹_› rnddown rounddown_axiom _ _ _ using 1;
         convert hs using 2 ; norm_num [ hβ ];
         rw [ div_mul_cancel₀ _ ( by positivity ) ];
       convert h_s_fnum using 2 ; norm_num [ h_exp, to_real ] ; ring;
@@ -713,8 +735,8 @@ lemma case2b_mantissa_bound (f g : float β) :
     intro hβ hf hg hs hs' hfg;
     simp +zetaDelta at *;
     rcases hs with ( rfl | rfl );
-    · exact?;
-    · exact?
+    · (expose_names; exact case2b_mantissa_bound_up hβ rndup roundup_axiom f g hβ_1 hf hg rfl hs' hfg);
+    · (expose_names; exact case2b_mantissa_bound_down hβ rndup rnddown roundup_axiom rounddown_axiom f g hβ_1 hf hg rfl hs' hfg)
 
 /-
 Case 2b: s.exp = f.exp + 1
@@ -734,7 +756,7 @@ lemma lemma25_case2b (f g : float β) :
       all_goals assumption;
     by_cases h_case : |(s.fnum * 2 - f.fnum : ℤ)| < @vnum β format;
     · refine' ⟨ ⟨ s.fnum * 2 - f.fnum, f.exp ⟩, _, _ ⟩ <;> simp_all +decide [ bounded_float ];
-      unfold to_real; simp +decide [ *, mul_assoc, mul_comm, mul_left_comm, zpow_add₀ ] ; ring;
+      unfold to_real; simp +decide [ *, mul_comm, zpow_add₀ ] ; ring;
     · -- Since |m| = vnum, we have m = ±vnum = ±2^p. Since m = 2*s.fnum - f.fnum and 2*s.fnum is even, m has same parity as f.fnum. Since m = ±2^p is even (p ≥ 1 from format.precpos), f.fnum is even, and m is even. So 2 ∣ m.
       have h_even : 2 ∣ (s.fnum * 2 - f.fnum : ℤ) := by
         have h_even : Even (s.fnum * 2 - f.fnum : ℤ) := by
@@ -746,7 +768,7 @@ lemma lemma25_case2b (f g : float β) :
           · exact even_iff_two_dvd.mpr ( dvd_pow_self _ ( by linarith [ format.precpos ] ) );
         exact even_iff_two_dvd.mp h_even;
       refine' ⟨ ⟨ ( s.fnum * 2 - f.fnum ) / 2, f.exp + 1 ⟩, _, _ ⟩ <;> simp_all +decide [ bounded_float ];
-      · unfold to_real; simp +decide [ *, mul_assoc, mul_comm, mul_left_comm, div_eq_mul_inv ] ; ring;
+      · unfold to_real; simp +decide [ *, mul_comm, div_eq_mul_inv ] ; ring;
         norm_num [ zpow_add₀, zpow_one ] ; ring;
       · grind +splitImp
 
@@ -782,21 +804,28 @@ noncomputable def fast2sum (a b : float β) (rnd1 rnd2 rnd3 : ℝ → float β)
   let t := rnd3 (b - z : ℝ);
   (s, t)
 
+omit hβ in
 lemma faithful_bounded (r : ℝ) (rnd : ℝ → float β) :
   faithful rndup rnddown rnd →
   s = rnd r →
   @bounded_float β format s := by
     intro h1 h2;
     have := h1 r;
-    unfold roundup rounddown at *; aesop;
+    unfold roundup rounddown at *;
+    subst h2
+    simp_all only [ge_iff_le, Multiset.insert_eq_cons, Multiset.mem_cons, Multiset.mem_singleton]
+    cases this with
+    | inl h => simp_all only
+    | inr h_1 => simp_all only
 
+omit hβ in
 lemma faithful_round_bounded_eq (z : float β) (rnd : ℝ → float β) :
   faithful rndup rnddown rnd →
   @bounded_float β format z →
   (z : ℝ) = rnd z := by
     intros h1 h2
     have h3 : rnd (to_real z) = rndup (to_real z) ∨ rnd (to_real z) = rnddown (to_real z) := by
-      exact?
+      exact (mem_or).mp (h1 (to_real z))
     cases h3 <;> simp_all +decide [ rounddown, roundup ];
     · exact le_antisymm ( roundup_axiom _ |>.2.1 ) ( roundup_axiom _ |>.2.2 _ h2 le_rfl ) ▸ rfl;
     · exact le_antisymm ( rounddown_axiom _ |>.2.2 _ h2 le_rfl ) ( rounddown_axiom _ |>.2.1 ) ▸ rfl

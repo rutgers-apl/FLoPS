@@ -27,7 +27,7 @@ include hβ
 
 lemma βexppos (e : ℤ) : (β ^ e : ℝ) > 0 := by
   apply zpow_pos
-  simp
+  simp only [Nat.cast_pos]
   omega
 
 lemma βexpnonneg (e : ℤ) : (β ^ e : ℝ) ≥ 0 := le_of_lt (βexppos hβ e)
@@ -57,10 +57,10 @@ def falign' (f g : float β) : Int × Int × Int :=
 omit hβ in
 lemma falign_eq (a b : float β) :
   falign a b = falign' a b := by
-  simp [falign, falign']
+  simp only [falign, falign']
   split
-  rw [min_eq_left (by omega)]; simp
-  rw [min_eq_right (by omega)]; simp
+  rw [min_eq_left (by omega)]; simp only [sub_self, Int.toNat_zero, pow_zero, mul_one]
+  rw [min_eq_right (by omega)]; simp only [sub_self, Int.toNat_zero, pow_zero, mul_one]
 
 -- fopp is the floating point negation operation, it negates the significand and keeps the exponent unchanged.
 omit hβ in
@@ -69,21 +69,21 @@ def fopp (f : float β) : float β :=
 
 omit hβ in
 lemma fopp_twice (f : float β) :
-  fopp (fopp f) = f := by simp [fopp]
+  fopp (fopp f) = f := by simp only [fopp, neg_neg]
 
 omit hβ in
 lemma fopp_correct (x : float β) :
-  (x : ℝ) = -(fopp x) := by simp [fopp, to_real]
+  (x : ℝ) = -(fopp x) := by simp only [to_real, fopp, Int.cast_neg, neg_mul, neg_neg]
 
 omit hβ in
 lemma fopp_correct' (x : float β) :
-  (fopp x : ℝ) = -x := by simp [fopp, to_real]
+  (fopp x : ℝ) = -x := by simp only [to_real, fopp, Int.cast_neg, neg_mul]
 
 omit hβ in
 def fabs (f : float β) : float β := ⟨|f.fnum|, f.exp⟩
 
 def fabs_correct (f : float β) :  (fabs f) = |(f : ℝ)| := by
-  simp [fabs, to_real, abs_mul]
+  simp only [to_real, fabs, Int.cast_abs, abs_mul, mul_eq_mul_left_iff, abs_eq_zero, Int.cast_eq_zero]
   left
   rw [abs_of_pos]
   apply βexppos hβ
@@ -94,29 +94,29 @@ def fplus (f g : float β) : float β :=
   ⟨m1 + m2, exp⟩
 
 def fplus_correct (f g : float β) : to_real (@fplus β f g) = to_real f + to_real g := by
-  have H : ∀ (e : ℕ), β ^ e = (β ^ (e : ℤ) : ℝ) := by simp
-  simp [fplus, falign, to_real, ite, *]
-  cases f.exp.decLe g.exp <;> simp [add_mul, H, mul_assoc]
+  have H : ∀ (e : ℕ), β ^ e = (β ^ (e : ℤ) : ℝ) := by simp only [zpow_natCast, implies_true]
+  simp only [to_real, fplus, falign, ite, Int.cast_add]
+  cases f.exp.decLe g.exp <;> simp only [Int.cast_mul, Int.cast_pow, Int.cast_natCast, H, Int.ofNat_toNat, add_mul, mul_assoc, add_left_inj, mul_eq_mul_left_iff, Int.cast_eq_zero, add_right_inj]
   . left
     have hh := hβ
     rw [<-zpow_add₀, zpow_right_inj₀, max, Int.instMax, maxOfLe]
-    simp [ite]
-    cases (f.exp - g.exp).decLe 0 <;> simp; omega
-    repeat {simp; omega}
+    simp only [ite]
+    cases (f.exp - g.exp).decLe 0 <;> simp only [sub_add_cancel, zero_add]; omega
+    repeat {simp only [Nat.cast_pos, ne_eq, Nat.cast_eq_one, Nat.cast_eq_zero]; omega}
   . left
     have hh := hβ
     rw [<-zpow_add₀, zpow_right_inj₀, max, Int.instMax, maxOfLe]
-    simp [ite]
-    cases (g.exp - f.exp).decLe 0 <;> simp; omega
-    repeat {simp; omega}
+    simp only [ite]
+    cases (g.exp - f.exp).decLe 0 <;> simp only [sub_add_cancel, zero_add]; omega
+    repeat {simp only [Nat.cast_pos, ne_eq, Nat.cast_eq_one, Nat.cast_eq_zero]; omega}
 
 omit hβ in
 def fminus (f g : float β) : float β :=
   @fplus β f (fopp g)
 
 def fminus_correct (f g : float β) : to_real (@fminus β f g) = (f : ℝ) - to_real g := by
-  simp [fminus, fopp, fplus_correct hβ]
-  simp [to_real, sub_eq_add_neg]
+  simp only [fminus, fopp, fplus_correct hβ]
+  simp only [to_real, Int.cast_neg, neg_mul, sub_eq_add_neg]
 
 omit hβ in
 def vnum := β ^ format.precision
@@ -140,15 +140,15 @@ lemma normal_bound (x : float β) :
   have := Hn.2
   rify
   rw [pow_sub₀]
-  simp
+  simp only [pow_one, ge_iff_le]
 
   refine mul_inv_le_of_le_mul₀ ?_ ?_ ?_
   norm_cast
   omega
-  simp
+  simp only [abs_nonneg]
   rewrite (occs := .pos [2]) [<-abs_of_pos (a := (β : ℝ))]
   rw [<-abs_mul, mul_comm]
-  simp [vnum] at this ⊢
+  simp only [vnum, Nat.cast_pow, abs_mul, Nat.abs_cast] at this ⊢
   norm_cast
   norm_cast at this
   norm_cast
@@ -168,7 +168,7 @@ omit hβ in
 lemma bounded_fopp_bounded (x : float β) :
   @bounded_float β format x →
   @bounded_float β format (fopp x) := by
-  simp [bounded_float, fopp]
+  simp only [bounded_float, fopp, abs_neg, imp_self]
 
 -- normal or subnormal
 -- we later show that this definition is equivalent to the current exponent is the canonical exponent
@@ -187,7 +187,7 @@ theorem canonical_least_exp :
   → to_real f = to_real g
   → f.exp <= g.exp := by
   intro Hf Hg Heq
-  simp [to_real, *] at Heq
+  simp only [to_real] at Heq
   cases le_or_gt f.exp g.exp with
   |inl _ => assumption
   |inr Hgt =>
@@ -199,13 +199,13 @@ theorem canonical_least_exp :
         unfold diff
         rw [zpow_sub₀, mul_div]
         refine eq_div_of_mul_eq ?_ (id (Eq.symm Heq))
-        simp
+        simp only [ne_eq]
         have := βexppos hβ g.exp
         exact ne_of_gt this
         norm_cast
         omega
       have Hlt : (β ^ diff : ℝ) ≥ β := by
-        simp [diff]
+        simp only [ge_iff_le, diff]
         rewrite (occs := .pos [1]) [<-zpow_one (β : ℝ)]
         refine (zpow_le_zpow_iff_right₀ ?_).mpr ?_
         · norm_cast
@@ -219,7 +219,7 @@ theorem canonical_least_exp :
         apply βexpnonneg hβ
         norm_cast
         omega
-        simp
+        simp only [abs_nonneg]
       cases Hnorm with |intro Hl Hr =>
       cases Hl
       cases Hg with |intro Hg' _ =>
@@ -242,7 +242,7 @@ lemma bounded_negate (x : float β) :
   @bounded_float β format x →
   @bounded_float β format ⟨-x.fnum, x.exp⟩ := by
   intro Hb
-  apply And.intro <;> simp
+  apply And.intro <;> simp only [abs_neg]
   exact Hb.1
   exact Hb.2
 
@@ -254,7 +254,7 @@ lemma normal_negate (x : float β) :
   constructor
   apply bounded_negate; assumption
   expose_names
-  simp at ⊢ right; assumption
+  simp only [abs_mul, Nat.abs_cast, mul_neg, abs_neg] at ⊢ right; assumption
 
 omit hβ in
 lemma subnormal_negate :
@@ -265,7 +265,7 @@ lemma subnormal_negate :
   have := @bounded_negate β format ⟨m, e⟩ (by assumption)
   assumption
   expose_names
-  simp at ⊢ right; assumption
+  simp only [abs_mul, Nat.abs_cast, mul_neg, abs_neg] at ⊢ right; assumption
 
 omit hβ in
 lemma canonical_negate (x : float β) :
@@ -277,23 +277,23 @@ lemma canonical_negate (x : float β) :
   rcases Hc with ⟨_, hn⟩ | ⟨_, hsub⟩
   left
   apply And.intro Hb
-  simp at hn ⊢
+  simp only [abs_mul, Nat.abs_cast, mul_neg, abs_neg] at hn ⊢
   assumption
   right
-  apply And.intro Hb; simp at hsub ⊢
+  apply And.intro Hb; simp only [abs_mul, Nat.abs_cast, mul_neg, abs_neg] at hsub ⊢
   assumption
 
 theorem bounded_0 : @bounded_float β format ⟨0, -format.dexp⟩ := by
   apply And.intro
-  simp [vnum]
+  simp only [abs_zero, vnum, Nat.cast_pow]
   rify
   rw [<-zpow_natCast]
   apply βexppos hβ
-  simp
+  simp only [le_refl]
 
 theorem subnormal_0 : @subnormal β format ⟨0, -format.dexp⟩ := by
   apply And.intro (bounded_0 hβ)
-  simp [vnum]
+  simp only [mul_zero, abs_zero, vnum, Nat.cast_pow, true_and]
   rify
   rw [<-zpow_natCast]
   apply βexppos hβ
@@ -314,12 +314,12 @@ theorem canonical_unique (f g : float β) :
   have Hexpeq : f.exp = g.exp := by omega
   have hβ' := hβ
   clear * - Heq Hexpeq hβ'
-  simp [to_real, *] at Heq
+  simp only [to_real, mul_eq_mul_right_iff, Int.cast_inj, Hexpeq] at Heq
   cases Heq with
   |inl Heq' =>
     cases f
     cases g
-    simp at *
+    simp only [gt_iff_lt, float.mk.injEq] at *
     exact ⟨Heq', Hexpeq⟩
   |inr F =>
     suffices (β ^ g.exp : ℝ) > 0 by
@@ -330,3 +330,53 @@ theorem canonical_unique (f g : float β) :
     apply zpow_pos
     norm_cast
     omega
+
+-- Alternative definitions using direct significand bounds (β = 2)
+omit hβ in
+def normal' {format} (f : float 2) :=
+  @bounded_float 2 format f
+  ∧ 2^(format.precision-1) <= |f.fnum|
+
+omit hβ in
+def subnormal' {format} (f : float 2) :=
+  @bounded_float 2 format f
+  ∧ f.exp = format.emin
+  ∧ |f.fnum| < 2^(format.precision-1)
+
+omit hβ in
+def canonical' {format} f :=
+  @normal' format f ∨ @subnormal' format f
+
+omit hβ in
+lemma normal_eq {f} {x} : @normal' f x ↔ @normal 2 f x := by
+  constructor;
+  · intro hx
+    obtain ⟨h_bound, h_exp⟩ := hx
+    exact ⟨h_bound, by
+      unfold vnum; norm_cast; rcases f with ⟨ f₁, f₂, f₃, f₄ ⟩ ; rcases Nat.eq_zero_or_pos f₁ with ( rfl | f₁_pos ) <;> simp_all +decide ;
+      · contradiction;
+      · cases f₁ <;> simp_all +decide [ pow_succ' ] ; linarith⟩;
+  · intro h;
+    convert h using 1;
+    ext; simp only [normal', normal, Nat.cast_ofNat, abs_mul, Nat.abs_ofNat, and_congr_right_iff];
+    unfold vnum; cases ‹Format›.precision <;> simp_all +decide [ pow_succ' ] ;
+    exact fun _ => ⟨ fun h => by linarith, fun h => by linarith [ abs_nonneg ( ‹float 2›.fnum ) ] ⟩
+
+omit hβ in
+lemma subnormal_eq {f} {x} : @subnormal' f x ↔ @subnormal 2 f x := by
+  constructor <;> intro h <;> cases h;
+  · constructor;
+    · assumption;
+    · simp_all +decide [ abs_mul, vnum ];
+      cases n : f.precision <;> simp_all +decide [ pow_succ' ];
+  · unfold subnormal';
+    unfold bounded_float vnum at *;
+    rcases k : f.precision with ( _ | k ) <;> simp_all +decide [ pow_succ' ]
+
+omit hβ in
+lemma canonical_eq {f} {x} : @canonical' f x ↔ @canonical 2 f x := by
+  -- Apply the lemmas `normal_eq` and `subnormal_eq` for the float type.
+  simp only [canonical', normal_eq, subnormal_eq, canonical]
+
+omit hβ in
+lemma precpos {f : Format} : f.precision > 0 := f.precpos

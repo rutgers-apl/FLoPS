@@ -1,5 +1,4 @@
 import Flops.Core.Defs
-import Flops.Core.RoundOp
 import Mathlib.Data.EReal.Basic
 import Mathlib.Data.EReal.Operations
 import Init.Data.ToString.Basic
@@ -65,82 +64,82 @@ def to_format (f : p3109_format) : Format := ⟨f.P, -f.emin_lsb, f.bias, f.h_P.
 lemma emin_emax_eq (f : p3109_format) (hp : 3 ≤ f.P) :
   (f.emin_lsb = f.emax_lsb ↔ f.W = 1) := by
   constructor
-  simp [emin_lsb, emax_lsb, emin, emax]
+  simp only [emin_lsb, emin, emax_lsb, emax, add_left_inj, sub_left_inj]
   split <;> intro heq
   repeat (exfalso; omega)
-  simp at heq
+  simp only [sub_left_inj] at heq
   have : 2^0 ≤ 2^f.W := by
     rw [Nat.pow_le_pow_iff_right]
-    simp; simp
+    simp only [zero_le]; simp only [Nat.one_lt_ofNat]
   have : 2^f.W = 2^1 := by
-    simp at this
+    simp only [pow_zero] at this
     norm_cast at heq
     omega
   rw [pow_right_inj₀] at this
   assumption
-  simp; simp
+  simp only [Nat.ofNat_pos]; simp only [ne_eq, OfNat.ofNat_ne_one, not_false_eq_true]
 
   intro hw
-  simp [emin_lsb, emax_lsb, emin, emax]
+  simp only [emin_lsb, emin, emax_lsb, emax, add_left_inj, sub_left_inj]
   split
   repeat (exfalso; omega)
-  simp [hw]
+  simp only [hw, pow_one, Int.reduceSub]
 
 -- some sanity check
 lemma exp_check (f : p3109_format) :
   f.emin_lsb ≤ f.emax_lsb := by
-  simp [emin_lsb, emax_lsb, emin, emax]
+  simp only [emin_lsb, emin, emax_lsb, emax, add_le_add_iff_right, tsub_le_iff_right, sub_add_cancel]
   split
   . case h_1 =>
-    simp
-    simp [le_sub_iff_add_le]
-    have : (4:ℤ) = 2^2 := by simp
+    simp only [sub_add_cancel]
+    simp only [le_sub_iff_add_le, Int.reduceAdd]
+    have : (4:ℤ) = 2^2 := by simp only [Int.reducePow]
     rw [this, pow_le_pow_iff_right₀]
     expose_names
-    simp [W, heq_1, heq]
+    simp only [W, heq_1, heq, Nat.reduceLeDiff]
     have _ := f.h_K
     omega
-    simp
+    simp only [Nat.one_lt_ofNat]
   . case h_2 =>
     expose_names
-    simp [W, heq_1, heq]
-    simp [le_sub_iff_add_le]
+    simp only [W, heq_1, heq, sub_add_cancel]
+    simp only [le_sub_iff_add_le, Int.reduceAdd]
     apply le_trans (b := 2^2)
-    simp
+    simp only [Int.reducePow, Int.reduceLE]
     rw [pow_le_pow_iff_right₀]
     have _ := f.h_K
-    omega; simp
+    omega; simp only [Nat.one_lt_ofNat]
   . case h_3 =>
     expose_names
-    simp [W, heq_1, heq]
+    simp only [W, heq_1, heq, sub_add_cancel]
     have _ := f.h_K
-    simp [le_sub_iff_add_le]
+    simp only [le_sub_iff_add_le, Int.reduceAdd, ge_iff_le]
     apply le_trans (b := 2^2)
-    simp
+    simp only [Int.reducePow, Int.reduceLE]
     rw [pow_le_pow_iff_right₀]
-    omega; simp
+    omega; simp only [Nat.one_lt_ofNat]
   . case h_4 =>
     expose_names
-    simp [bias, W, heq, heq_1]
-    simp [le_sub_iff_add_le]
-    apply le_trans (b := 2^2); simp
+    simp only [W, heq_1, heq, bias, add_tsub_cancel_right, sub_add_cancel]
+    simp only [le_sub_iff_add_le, Int.reduceAdd]
+    apply le_trans (b := 2^2); simp only [Int.reducePow, Int.reduceLE]
     rw [pow_le_pow_iff_right₀]
     have _ := f.h_K
-    omega; simp
-  simp
-  simp [le_sub_iff_add_le]
+    omega; simp only [Nat.one_lt_ofNat]
+  simp only [sub_add_cancel]
+  simp only [le_sub_iff_add_le, Int.reduceAdd]
   rewrite (occs := .pos [1]) [<-pow_one 2]
   rw [pow_le_pow_iff_right₀]
-  simp [W]
+  simp only [W]
   have ⟨_, hs, hu⟩ := f.h_P
   set s := f.s with heq
   rcases s
   have _ := hs rfl
-  simp
+  simp only [ge_iff_le]
   omega
   have _ := hu rfl
-  simp
-  simp
+  simp only [le_add_iff_nonneg_left, zero_le]
+  simp only [Nat.one_lt_ofNat]
 
 end p3109_format
 
@@ -172,12 +171,12 @@ def normal_p3109 (x : float 2) : Prop :=
 lemma normal_p3109_negate {x : float 2} :
   @normal_p3109 f x →
   @normal_p3109 f (fopp x) := by
-  simp [fopp]
+  simp only [fopp]
   intro ⟨_, hle, _, _⟩
-  simp at hle
+  simp only [abs_mul, Nat.abs_ofNat] at hle
   constructor
   apply bounded_negate; assumption
-  simp
+  simp only [mul_neg, abs_neg, abs_mul, Nat.abs_ofNat]
   constructor; assumption
   constructor; assumption
   assumption
@@ -208,14 +207,14 @@ lemma canonical_p3109_negate {x : float 2} :
   intro can
   rcases can with _|⟨_, _, hlt⟩
   left; apply normal_p3109_negate; assumption
-  simp at hlt
+  simp only [Nat.cast_ofNat, abs_mul, Nat.abs_ofNat] at hlt
   right
-  simp [fopp]
+  simp only [fopp]
   constructor;
   (expose_names; exact bounded_negate x left)
   constructor
-  simp; assumption
-  simp; assumption
+  simp only; assumption
+  simp only [Nat.cast_ofNat, mul_neg, abs_neg, abs_mul, Nat.abs_ofNat]; assumption
 
 lemma canonical_exp_le_emax {x : float 2} :
   @canonical_p3109 f x →
@@ -223,8 +222,8 @@ lemma canonical_exp_le_emax {x : float 2} :
   intro hcan
   rcases hcan with ⟨_, _, _, _⟩|⟨_, heq, _⟩
   assumption
-  simp [to_format] at heq
-  simp [heq]
+  simp only [to_format, neg_neg] at heq
+  simp only [heq]
   apply exp_check
 
 inductive p3109 (f : p3109_format) where
@@ -243,25 +242,25 @@ instance : ToString (p3109 f) where
   |.p3109_finite m e _ _ => "(" ++ toString m ++ ", " ++ toString e ++ ")"
 
 def opp (x : p3109 f) (hs : f.s = .signed) : p3109 f := match x with
-  |.p3109_infinity h sign _ => .p3109_infinity h sign.not (by simp [hs])
+  |.p3109_infinity h sign _ => .p3109_infinity h sign.not (by simp only [Bool.not_eq_eq_eq_not, Bool.not_true, hs, implies_true])
   |.p3109_nan => .p3109_nan
-  |.p3109_finite m e hm hcan => .p3109_finite (-m) e (by simp [hs]) (by have := @canonical_p3109_negate f ⟨m, e⟩ hcan; simp [fopp] at this; exact this)
+  |.p3109_finite m e hm hcan => .p3109_finite (-m) e (by simp only [hs, reduceCtorEq, Int.neg_nonneg, IsEmpty.forall_iff]) (by have := @canonical_p3109_negate f ⟨m, e⟩ hcan; simp only [fopp] at this; exact this)
 
 noncomputable def max_finite : p3109 f :=
   if hp : f.P = 1 then
-    have h1 : f.s = Signedness.unsigned → 0 ≤ (1 : ℤ) := by simp
+    have h1 : f.s = Signedness.unsigned → 0 ≤ (1 : ℤ) := by simp only [zero_le_one, implies_true]
     have h2 : @canonical_p3109 f ⟨1, f.emax_lsb⟩ := by
       have _ := f.h_P
       left
       constructor; constructor
-      simp [vnum, to_format]
+      simp only [abs_one, vnum, to_format, Nat.cast_pow, Nat.cast_ofNat]
       rw [<-pow_zero 2, pow_lt_pow_iff_right₀]
-      omega; simp
-      simp [to_format]
+      omega; simp only [Nat.one_lt_ofNat]
+      simp only [to_format, neg_neg]
       apply exp_check
       constructor
-      simp [vnum, to_format, hp]
-      simp
+      simp only [vnum, to_format, hp, pow_one, Nat.cast_ofNat, mul_one, Nat.abs_ofNat, le_refl]
+      simp only [le_refl, abs_one, forall_const, true_and]
       intro; exfalso; omega
     .p3109_finite 1 f.emax_lsb h1 h2
   else -- p ≠ 1
@@ -272,65 +271,65 @@ noncomputable def max_finite : p3109 f :=
       |2, .unsigned, .extended => 1
       |_, .unsigned, .extended => 3
     have h1 : (0 : ℤ) ≤ (@vnum 2 f.to_format - sub) := by
-      simp [vnum, to_format]
+      simp only [vnum, to_format, Nat.cast_pow, Nat.cast_ofNat, Int.sub_nonneg]
       apply le_trans (b := 4)
-      simp [sub]; split <;> simp
-      have : (4 : ℤ) = 2^2 := by simp
+      simp only [sub]; split <;> simp only [Nat.one_le_ofNat, Int.reduceLE]
+      have : (4 : ℤ) = 2^2 := by simp only [Int.reducePow]
       rw [this, pow_le_pow_iff_right₀]
       have _ := f.h_P
-      omega; simp
+      omega; simp only [Nat.one_lt_ofNat]
     have h2 : @canonical_p3109 f ⟨(@vnum 2 f.to_format - sub), f.emax_lsb⟩ := by
       left
       constructor
       constructor
-      simp
+      simp only
       rw [abs_of_nonneg h1]
-      simp [sub]
-      split <;> simp
-      simp
-      simp [to_format]
+      simp only [sub_lt_self_iff, sub]
+      split <;> simp only [zero_lt_one, Nat.ofNat_pos]
+      simp only
+      simp only [to_format, neg_neg]
       apply exp_check
-      simp [abs_mul]
+      simp only [abs_mul, Nat.abs_ofNat, le_refl, forall_const, true_and]
       rw [abs_of_nonneg h1, mul_sub, two_mul]
       constructor
-      simp [le_sub_iff_add_le, sub, vnum, to_format]
+      simp only [vnum, to_format, Nat.cast_pow, Nat.cast_ofNat, le_sub_iff_add_le, add_le_add_iff_left, sub]
       have _ := f.h_P
       split
-      apply le_trans (b := 2^2); simp
-      rw [pow_le_pow_iff_right₀]; omega; simp
-      apply le_trans (b := 2^2); simp
-      rw [pow_le_pow_iff_right₀]; omega; simp
-      apply le_trans (b := 2^2); simp
-      rw [pow_le_pow_iff_right₀]; omega; simp
-      apply le_trans (b := 2^2); simp
-      rw [pow_le_pow_iff_right₀]; omega; simp
-      apply le_trans (b := 2^3); simp
+      apply le_trans (b := 2^2); simp only [mul_one, Int.reducePow, Int.reduceLE]
+      rw [pow_le_pow_iff_right₀]; omega; simp only [Nat.one_lt_ofNat]
+      apply le_trans (b := 2^2); simp only [Int.reduceMul, Int.reducePow, le_refl]
+      rw [pow_le_pow_iff_right₀]; omega; simp only [Nat.one_lt_ofNat]
+      apply le_trans (b := 2^2); simp only [Int.reduceMul, Int.reducePow, le_refl]
+      rw [pow_le_pow_iff_right₀]; omega; simp only [Nat.one_lt_ofNat]
+      apply le_trans (b := 2^2); simp only [mul_one, Int.reducePow, Int.reduceLE]
+      rw [pow_le_pow_iff_right₀]; omega; simp only [Nat.one_lt_ofNat]
+      apply le_trans (b := 2^3); simp only [Int.reduceMul, Int.reducePow, Int.reduceLE]
       rw [pow_le_pow_iff_right₀]
       . case h_5.a hne=>
-        simp at hne
+        simp only [imp_false] at hne
         omega
-      simp
+      simp only [Nat.one_lt_ofNat]
       intro
-      split <;> simp
+      split <;> simp only [sub_lt_sub_iff_left]
       expose_names
-      simp [sub, heq, heq_1]
+      simp only [heq, heq_1, Nat.one_lt_ofNat, sub]
       expose_names
-      simp [sub, heq, heq_1]
-      split; simp
+      simp only [heq, heq_1, Nat.one_lt_ofNat, sub]
+      split; simp only
       expose_names
-      simp [sub, heq, heq_1]
+      simp only [heq, heq_1, Int.reduceLT, sub]
     .p3109_finite (@vnum 2 f.to_format - sub) f.emax_lsb (λ_ => h1) h2
 
 noncomputable def min_finite : p3109 f :=
   if _ : f.s = .unsigned then
-    have h1 : f.s = Signedness.unsigned → (0 : ℤ) ≤ 0 := by simp
+    have h1 : f.s = Signedness.unsigned → (0 : ℤ) ≤ 0 := by simp only [le_refl, implies_true]
     have h2 : @canonical_p3109 f ⟨0, f.emin_lsb⟩ := by
       right
       constructor
-      have : f.emin_lsb = -f.to_format.dexp := by simp [to_format]
+      have : f.emin_lsb = -f.to_format.dexp := by simp only [to_format, neg_neg]
       rw [this]
       apply bounded_0 (by omega)
-      simp [to_format, vnum]
+      simp only [to_format, neg_neg, Nat.cast_ofNat, mul_zero, abs_zero, vnum, Nat.cast_pow, Nat.ofNat_pos, pow_pos, and_self]
 
     .p3109_finite 0 f.emin_lsb h1 h2
   else
@@ -344,36 +343,36 @@ noncomputable def min_finite : p3109 f :=
       constructor
       apply bounded_negate _ hb
       constructor
-      simp
-      simp at hm
+      simp only [mul_neg, abs_neg, abs_mul, Nat.abs_ofNat]
+      simp only [abs_mul, Nat.abs_ofNat] at hm
       assumption
       constructor
-      simp
-      simp at he
+      simp only
+      simp only at he
       assumption
-      simp
-      simp at hm'
+      simp only [abs_neg]
+      simp only at hm'
       assumption
       right
       constructor
       apply bounded_negate _ hb
-      simp at ⊢ hlt
+      simp only [Nat.cast_ofNat, abs_mul, Nat.abs_ofNat, mul_neg, abs_neg] at ⊢ hlt
       constructor <;> assumption
 
     have h1 : f.s = Signedness.unsigned → 0 ≤ -m := by
       intro
-      exfalso; aesop
+      exfalso; simp_all only [not_true_eq_false]
     .p3109_finite (-m) e h1 h2
 
 def p3109_0 : p3109 f :=
-    have h1 : f.s = Signedness.unsigned → (0 : ℤ) ≤ 0 := by simp
+    have h1 : f.s = Signedness.unsigned → (0 : ℤ) ≤ 0 := by simp only [le_refl, implies_true]
     have h2 : @canonical_p3109 f ⟨0, f.emin_lsb⟩ := by
       right
       constructor
-      have : f.emin_lsb = -f.to_format.dexp := by simp [to_format]
+      have : f.emin_lsb = -f.to_format.dexp := by simp only [to_format, neg_neg]
       rw [this]
       apply bounded_0 (by omega)
-      simp [to_format, vnum]
+      simp only [to_format, neg_neg, Nat.cast_ofNat, mul_zero, abs_zero, vnum, Nat.cast_pow, Nat.ofNat_pos, pow_pos, and_self]
     .p3109_finite 0 f.emin_lsb h1 h2
 
 namespace p3109
@@ -429,15 +428,15 @@ noncomputable instance : CoeOut (p3109 f) EReal where
 
 lemma to_float_eq {x : p3109 f} :
   (x.to_float:ℝ)=x := by
-  simp [to_real, to_float]
-  split <;> simp [_root_.to_real]
+  simp only [to_float, to_real]
+  split <;> simp only [_root_.to_real, Nat.cast_ofNat, Int.cast_zero, zero_mul]
 
 lemma to_real_eq (x : p3109 f) :
   (x : ℝ) = x.fnum * 2^x.exp := by
-  simp [to_real, fnum, exp]
-  split <;> simp
+  simp only [to_real, fnum, exp]
+  split <;> simp only [Int.cast_zero, zero_mul]
 
 lemma finite_to_ereal_eq (x : p3109 f) :
   x.is_finite →
   (x : EReal) = (x : ℝ) := by
-  cases x <;> simp [is_finite, to_real, to_ereal]
+  cases x <;> simp only [ is_finite, to_ereal, to_real, EReal.coe_zero, IsEmpty.forall_iff, implies_true, EReal.coe_mul ]

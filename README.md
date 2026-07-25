@@ -5,60 +5,72 @@ Park](https://people.cs.rutgers.edu/~santosh.nagarakatte/rapl/index.html),
 [Jay P Lim](https://dongura.me/), and [Santosh
 Nagarakatte](https://people.cs.rutgers.edu/~santosh.nagarakatte/)
 
-The FLoPS framework formalizes the upcoming IEEE P3109 standard in
-Lean.
+FLoPS formalizes the IEEE P3109 standard for low-precision
+floating-point arithmetic in Lean. This repository is the artifact for
+the FMCAD 2026 paper of the same title.
 
-The upcoming IEEE-P3109 standard for low-precision floating-point
-arithmetic can become the foundation of future machine learning
-hardware and software. Unlike the fixed types of IEEE-754, P3109
-introduces a parametric framework defined by bitwidth, precision,
-signedness, and domain. This flexibility results in a vast
-combinatorial space of formats — some with as little as one bit of
-precision — alongside novel features such as stochastic rounding and
-saturation arithmetic. These deviations create a unique verification
-gap that the FLoPS framework intends to address.
+Unlike the fixed types of IEEE 754, P3109 introduces a parametric
+framework defined by bit width, precision, signedness, and domain. It
+includes formats with as little as one bit of precision, stochastic
+rounding, and saturation arithmetic. FLoPS provides a machine-checked
+semantic model, proves foundational properties and algorithmic results,
+and connects the mathematical model to an executable bit-level kernel.
 
-Our goal is to make the FLoPS framework the most comprehensive
-formalization of the P3109 standard in Lean. Our work serves as a
-rigorous, machine-checked specification that facilitates deep analysis
-of the standard. We demonstrate the model's utility by verifying
-foundational properties and analyzing key algorithms within the P3109
-context.  Specifically, we reveal that FastTwoSum exhibits a novel
-property of computing exact "overflow error" under saturation using
-any rounding mode, whereas previously established properties of the
-ExtractScalar algorithm fail for formats with one bit of
-precision. This work provides a verified foundation for reasoning
-about P3109 and enables formal verification of future numerical
-software.
-
-Full details of the FLoPS framework is available in our paper, [FLoPS:
-Semantics, Operations, and Properties of P3109 Floating-Point
-Representations in Lean (pdf)](https://arxiv.org/pdf/2602.15965),
-Rutgers Department of Computer Science Technical Report DCS-TR-762,
-February 2026
+The preprint is available as [FLoPS: Semantics, Operations, and
+Properties of P3109 Floating-Point Representations in
+Lean](https://arxiv.org/pdf/2602.15965), Rutgers Department of Computer
+Science Technical Report DCS-TR-762, February 2026.
 
 ## Project Structure
 
-The outer directory, Flops, contains the general definition of the
-abstract model (formats with subnormals and no exponent upper bound)
-and foundational properties of floating-point arithmetic. The
-directory Flops/P3109 is the formalization of the P3109 standard. The
-directory can be grouped into three parts:
-- Formalization of definitions from the standard: `Defs.lean`, `Rounding.lean`, `Projection.lean`, `KApproximate.lean`. `Defs.lean` contains the P3109 algebraic data type.
+- `Flops/Core` contains the abstract floating-point model and reusable
+  arithmetic results.
+- `Flops/P3109` contains the mathematical P3109 semantics, including
+  definitions, rounding, projection, saturation, and arithmetic
+  properties.
+- `Flops/P3109/Exec` contains the executable bit-level model and its
+  refinement proofs.
+- `Flops/AccSum` is retained from the reviewed artifact for the
+  ExtractScalar case study. It is not part of the P3109 semantic model
+  and is unchanged by the camera-ready artifact update.
 
-- Rounding properties: `RtoProperty.lean`, `StochasticProperties.lean`, `RoundingProjection.lean`.
+The P3109 development includes:
 
-- Correctness guarantees: `Emax.lean`, `Bijection.lean`, `RoundTrip.lean`.
+- definitions from the standard in `Defs.lean`, `Rounding.lean`, and
+  `Projection.lean`;
+- rounding results in `RtoProperty.lean`, `StochasticProperties.lean`,
+  and `RoundingProjection.lean`;
+- representation results in `Emax.lean`, `Bijection.lean`, and
+  `RoundTrip.lean`;
+- arithmetic results in `Sterbenz.lean`, `Fast2Sum.lean`,
+  `Fast2SumSat.lean`, and `ExtractScalar.lean`.
 
-- Properties of P3109 arithmetic: `Sterbenz.lean`, `Fast2Sum.lean`, `Fast2SumSat.lean`, `Scalar.lean`.
+## Executable Semantics
 
-## Compiling Instructions
+`Flops/P3109/Exec.lean` is the entry point for the executable artifact.
+It includes bit-level format descriptions, encoding and decoding,
+classification, rounding, saturation, projection, and core operations.
+The files under `Flops/P3109/Exec/Refinement` prove correspondence with
+the mathematical semantics. `Tests.lean` and `EvalTests.lean` contain
+regression and evaluation examples that are checked when the entry point
+is built.
 
-The formalization has been developed in `Lean 4` and its math library
-`Mathlib`. For detailed instructions to install Lean, Mathlib, and
-build system, visit the [Lean Community
-website](https://lean-lang.org/install/).
+## Building
 
-After the repo is cloned to your local computer, you can open VSCode
-and run the extension, or enter `lake build` in the root directory
-using command line.
+The artifact uses Lean `v4.28.0` and Mathlib `v4.28.0`, pinned by
+`lean-toolchain`, `lakefile.lean`, and `lake-manifest.json`. Install Lean
+through [elan](https://lean-lang.org/install/), then run from the
+repository root:
+
+```sh
+lake build
+```
+
+To check only the executable semantics and its refinement proofs:
+
+```sh
+lake build +Flops.P3109.Exec
+```
+
+Both commands elaborate the regression examples imported by
+`Flops.P3109.Exec`. A successful command exits with status 0.
