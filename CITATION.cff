@@ -1,0 +1,53 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "Semantics, Operations, and Properties of P3109 Floating-Point Representations in Lean"
+type: software
+authors:
+  - family-names: Chang
+    given-names: Tung-Che
+    orcid: "https://orcid.org/0009-0007-6647-8399"
+    affiliation: Rutgers University
+  - family-names: Park
+    given-names: Sehyeok
+    orcid: "https://orcid.org/0009-0002-1528-562X"
+    affiliation: Rutgers University
+  - family-names: Lim
+    given-names: Jay P.
+    orcid: "https://orcid.org/0000-0002-7572-4017"
+    affiliation: University of California, Riverside
+  - family-names: Nagarakatte
+    given-names: Santosh
+    orcid: "https://orcid.org/0000-0002-5048-8548"
+    affiliation: Rutgers University
+version: "fmcad-2026"
+repository-code: "https://github.com/rutgers-apl/FLoPS"
+license: MIT
+keywords:
+  - floating-point arithmetic
+  - formalization
+  - Lean
+  - IEEE P3109
+  - stochastic rounding
+abstract: >-
+  The upcoming IEEE P3109 standard for low-precision floating-point arithmetic
+  can become the foundation of future machine learning hardware and software.
+  Unlike IEEE-754, P3109 introduces a parametric framework defined by bitwidth,
+  precision, signedness, and domain. This flexibility yields a vast
+  combinatorial space of formats, some with as little as one bit of precision,
+  alongside novel features such as stochastic rounding and saturation
+  arithmetic. These deviations create a unique verification gap that this
+  paper intends to address.
+
+  This paper presents FLoPS, Formalization in Lean of the P3109 Standard,
+  which is a formal model of P3109 in Lean. Our work serves as a rigorous,
+  machine-checked specification that facilitates deep analysis of the standard.
+  We demonstrate the model's utility by verifying foundational properties and
+  analyzing key algorithms within the P3109 context. Specifically, we reveal
+  that FastTwoSum exhibits a novel property of computing exact "overflow error"
+  under saturation using any rounding mode, whereas previously established
+  properties of the ExtractScalar algorithm fail for formats with one bit of
+  precision. We also provide a verified executable bit-level kernel, with
+  refinement proofs for rounding, saturation, projection, and the core
+  arithmetic operations. This work provides a verified foundation for reasoning
+  about P3109 and enables formal verification of future numerical hardware and
+  software. Our Lean development is open source and publicly available.
