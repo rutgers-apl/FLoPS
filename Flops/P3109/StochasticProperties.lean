@@ -48,8 +48,14 @@ Properties of stochastic rounding modes A, B, and C from the P3109 standard,
 * `src_exact_bias_finite_precision`: Zero aggregate bias over a D-bit input
   grid and all N-bit random choices, for N > 0.
 * `src_zero_bits_half_bias`: The N > 0 hypothesis is necessary.
-* `src_quantized_summation_sqrt_n`: RMS bound for the second stochastic
-  stage relative to its RNITE-quantized input, not relative to the original η.
+* `src_second_moment_vs_true_input_eq`: Exact one-step second moment relative
+  to the original input.
+* `src_summation_second_moment_eq`: Exact accumulated second moment relative
+  to the original inputs.
+* `src_summation_rms_bound_of_nearest`: RMS bound for arbitrary inputs after
+  nearest-even preprocessing.
+* `src_grid_summation_sqrt_n`: RMS accumulated error at most √(2^D)/2 over
+  a complete D-bit input grid, relative to the original inputs.
 -/
 
 open Classical Finset
@@ -397,6 +403,115 @@ lemma product_sum_factors (n : ℕ) (M : ℕ)
   simp_all +decide [ Finset.sum_range, Finset.prod_ite, Finset.filter_eq', Finset.filter_ne' ];
   simp_all +decide [ Finset.card_erase_of_mem, Finset.mem_erase, ne_comm ] ; ring;
   aesop
+
+/-
+Summing a function of one coordinate over a finite product repeats its
+one-dimensional sum once for every assignment of the other coordinates.
+-/
+set_option maxHeartbeats 400000 in
+lemma product_sum_single (n : ℕ) (M : ℕ)
+    (f : Fin n → ℕ → ℝ) (i : Fin n) :
+    (∑ Rs ∈ Finset.univ (α := Fin n → Fin M), f i (Rs i).val)
+    = (M : ℝ) ^ (n - 1) * (∑ R ∈ Finset.range M, f i R) := by
+  have h_decomp :
+      (∑ Rs : Fin n → Fin M, f i (Rs i))
+      = ∏ j : Fin n, (∑ R : Fin M, if j = i then f i R else 1) := by
+    rw [Finset.prod_sum]
+    refine' Finset.sum_bij (fun Rs _ => fun j _ => Rs j) _ _ _ _ <;>
+      simp +decide
+    · simp +decide [funext_iff]
+    · exact fun b => ⟨fun j => b j (Finset.mem_univ j), funext fun _ => rfl⟩
+  simp_all +decide [Finset.sum_range, Finset.prod_ite,
+    Finset.filter_eq', Finset.filter_ne']
+  ring
+
+/-
+For independent zero-mean coordinates, the mean square of their sum is the
+sum of their individual second moments.
+-/
+lemma variance_sum_eq (n : ℕ) (N : ℕ)
+    (err : Fin n → ℕ → ℝ)
+    (h_mean : ∀ i, (∑ R ∈ Finset.range (2 ^ N), err i R) = 0) :
+    (∑ Rs ∈ Finset.univ (α := Fin n → Fin (2 ^ N)),
+      (∑ i : Fin n, err i (Rs i).val) ^ 2)
+    / ((2 : ℝ) ^ N) ^ n
+    = ∑ i : Fin n,
+        (∑ R ∈ Finset.range (2 ^ N), (err i R) ^ 2) / (2 : ℝ) ^ N := by
+  have h_expand :
+      (∑ Rs : Fin n → Fin (2 ^ N), (∑ i, err i (Rs i).val) ^ 2)
+      = ∑ i, ∑ j,
+          (∑ Rs : Fin n → Fin (2 ^ N),
+            err i (Rs i).val * err j (Rs j).val) := by
+    simp +decide only [sq, Finset.mul_sum _ _ _, mul_comm]
+    exact Finset.sum_comm.trans
+      (Finset.sum_congr rfl fun _ _ => Finset.sum_comm)
+  have h_apply_factors : ∀ i j : Fin n,
+      (∑ Rs : Fin n → Fin (2 ^ N),
+        err i (Rs i).val * err j (Rs j).val)
+      = if i = j then
+          (2 ^ N : ℝ) ^ (n - 1) *
+            (∑ R ∈ Finset.range (2 ^ N), err i R ^ 2)
+        else 0 := by
+    intro i j
+    split_ifs with hij
+    · subst j
+      convert product_sum_single n (2 ^ N)
+        (fun i R => err i R ^ 2) i using 1 <;>
+        norm_num [← pow_mul] <;> ring
+    · convert product_sum_factors n (2 ^ N) err i j hij using 1
+      norm_num [h_mean]
+  rw [h_expand]
+  simp_rw [h_apply_factors]
+  rcases n with _ | n
+  · simp
+  · simp only [Finset.sum_ite, Finset.filter_eq, Finset.filter_ne,
+      Finset.sum_const_zero]
+    rw [Finset.sum_div]
+    norm_num [pow_succ, ← Finset.mul_sum _ _ _, ← Finset.sum_mul,
+      div_eq_iff]
+    field_simp
+
+/-
+Adding a deterministic shift to each independent zero-mean error adds the
+square of the total shift to the accumulated second moment.
+-/
+lemma mean_square_add_shifts (n : ℕ) (N : ℕ)
+    (err : Fin n → ℕ → ℝ) (shift : Fin n → ℝ)
+    (h_mean : ∀ i, (∑ R ∈ Finset.range (2 ^ N), err i R) = 0) :
+    (∑ Rs ∈ Finset.univ (α := Fin n → Fin (2 ^ N)),
+      (∑ i : Fin n, (err i (Rs i).val + shift i)) ^ 2)
+      / ((2 : ℝ) ^ N) ^ n
+    = (∑ Rs ∈ Finset.univ (α := Fin n → Fin (2 ^ N)),
+        (∑ i : Fin n, err i (Rs i).val) ^ 2)
+        / ((2 : ℝ) ^ N) ^ n
+      + (∑ i : Fin n, shift i) ^ 2 := by
+  have h_total_mean :
+      (∑ Rs : Fin n → Fin (2 ^ N),
+        ∑ i : Fin n, err i (Rs i).val) = 0 := by
+    rw [Finset.sum_comm]
+    apply Finset.sum_eq_zero
+    intro i _
+    rw [product_sum_single]
+    simp [h_mean i]
+  have h_expand :
+      (∑ Rs : Fin n → Fin (2 ^ N),
+        ((∑ i : Fin n, err i (Rs i).val) + (∑ i : Fin n, shift i)) ^ 2)
+      = (∑ Rs : Fin n → Fin (2 ^ N),
+          (∑ i : Fin n, err i (Rs i).val) ^ 2)
+        + 2 * (∑ i : Fin n, shift i) *
+          (∑ Rs : Fin n → Fin (2 ^ N),
+            ∑ i : Fin n, err i (Rs i).val)
+        + ((2 : ℝ) ^ N) ^ n * (∑ i : Fin n, shift i) ^ 2 := by
+    simp_rw [add_sq]
+    rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+    simp only [Finset.sum_const, nsmul_eq_mul]
+    norm_num [← Finset.mul_sum _ _ _, ← Finset.sum_mul, ← pow_mul]
+    ring
+  simp only [Finset.sum_add_distrib]
+  rw [h_expand, h_total_mean]
+  norm_num
+  field_simp
+
 /-
 Expand (∑ᵢ εᵢ)² = ∑ᵢ εᵢ² + ∑_{i≠j} εᵢεⱼ. The cross terms vanish by
 `product_sum_factors` + `h_mean`. The diagonal terms are bounded by n/4.
@@ -702,16 +817,411 @@ lemma src_second_moment (N : ℕ)
     linarith [show (1 : ℝ) ≤ 2 ^ N by exact_mod_cast hpow]
 
 /-
-The second moment of SRC error relative to the *true* input η (not η').
+The round-up count remains k at the endpoint k = 2^N, where every random
+choice rounds up.
 -/
-lemma src_variance_vs_true_input (_N : ℕ) (_hN : 0 < _N)
-    (η η' : ℝ) (_hη0 : 0 ≤ η) (_hη1 : η < 1)
-    (_hη'0 : 0 ≤ η') (_hη'1 : η' ≤ 1)
-    (hclose : |η' - η| ≤ 1 / 2) :
-    η' * (1 - η) ^ 2 + (1 - η') * η ^ 2 ≤ 1 / 4 + |η' - η| := by
-  cases abs_cases ( η' - η ) <;> push_cast [ * ] <;> nlinarith [ sq_nonneg ( η - 1 / 2 ) ]
+lemma src_roundup_count_le (N : ℕ) (k : ℕ) (hk : k ≤ 2 ^ N) :
+    ((Finset.range (2 ^ N)).filter
+      (fun R => 2 ^ N ≤ k + R)).card = k := by
+  rcases hk.lt_or_eq with hlt | rfl
+  · exact roundup_count_full_range N k hlt
+  · simp
 
-/-! ## Phase 4: RMS bound for SRC's stochastic stage -/
+/-
+The stochastic error around p = k/2^N has mean zero, including p = 1.
+-/
+lemma src_centered_sum (N : ℕ) (k : ℕ) (hk : k ≤ 2 ^ N) :
+    (∑ R ∈ Finset.range (2 ^ N),
+      if 2 ^ N ≤ k + R
+      then 1 - (k : ℝ) / (2 : ℝ) ^ N
+      else -((k : ℝ) / (2 : ℝ) ^ N)) = 0 := by
+  have hnot :
+      ((Finset.range (2 ^ N)).filter
+        (fun R : ℕ => ¬2 ^ N ≤ k + R)).card = 2 ^ N - k := by
+    have hpartition := Finset.card_filter_add_card_filter_not
+      (s := Finset.range (2 ^ N))
+      (p := fun R : ℕ => 2 ^ N ≤ k + R)
+    rw [src_roundup_count_le N k hk] at hpartition
+    simp only [Finset.card_range] at hpartition
+    omega
+  rw [Finset.sum_ite]
+  simp only [Finset.sum_const, nsmul_eq_mul]
+  rw [src_roundup_count_le N k hk, hnot]
+  push_cast [Nat.cast_sub hk]
+  field_simp
+  ring
+
+/-
+The exact second moment of SRC error relative to the original input η. If
+p = k/2^N is the nearest-even intermediate value, it is the Bernoulli
+variance p(1-p) plus the squared deterministic error (p-η)².
+-/
+lemma src_second_moment_vs_true_input_eq (N : ℕ)
+    (k : ℕ) (hk : k ≤ 2 ^ N) (η : ℝ) :
+    (1 / (2 : ℝ) ^ N) *
+      (∑ R ∈ Finset.range (2 ^ N),
+        if 2 ^ N ≤ k + R then (1 - η) ^ 2 else η ^ 2)
+    = ((k : ℝ) / (2 : ℝ) ^ N) *
+        (1 - (k : ℝ) / (2 : ℝ) ^ N)
+      + ((k : ℝ) / (2 : ℝ) ^ N - η) ^ 2 := by
+  have hnot :
+      ((Finset.range (2 ^ N)).filter
+        (fun R : ℕ => ¬2 ^ N ≤ k + R)).card = 2 ^ N - k := by
+    have hpartition := Finset.card_filter_add_card_filter_not
+      (s := Finset.range (2 ^ N))
+      (p := fun R : ℕ => 2 ^ N ≤ k + R)
+    rw [src_roundup_count_le N k hk] at hpartition
+    simp only [Finset.card_range] at hpartition
+    omega
+  rw [Finset.sum_ite]
+  simp only [Finset.sum_const, nsmul_eq_mul]
+  rw [src_roundup_count_le N k hk, hnot]
+  push_cast [Nat.cast_sub hk]
+  field_simp
+  ring
+
+/-
+The centered second moment is p(1-p), now also covering p = 1.
+-/
+lemma src_centered_second_moment (N : ℕ)
+    (k : ℕ) (hk : k ≤ 2 ^ N) :
+    (1 / (2 : ℝ) ^ N) *
+      (∑ R ∈ Finset.range (2 ^ N),
+        if 2 ^ N ≤ k + R
+        then (1 - (k : ℝ) / (2 : ℝ) ^ N) ^ 2
+        else ((k : ℝ) / (2 : ℝ) ^ N) ^ 2)
+    = ((k : ℝ) / (2 : ℝ) ^ N) *
+        (1 - (k : ℝ) / (2 : ℝ) ^ N) := by
+  convert src_second_moment_vs_true_input_eq N k hk
+    ((k : ℝ) / (2 : ℝ) ^ N) using 1 <;> ring
+
+/-
+RNITE moves an input fraction by at most half of one N-bit grid interval.
+-/
+lemma src_quantization_error_bound (N : ℕ) (η : ℝ) :
+    |(rnite (η * (2 : ℝ) ^ N) : ℝ) / (2 : ℝ) ^ N - η|
+      ≤ 1 / (2 * (2 : ℝ) ^ N) := by
+  have hden : 0 < (2 : ℝ) ^ N := by positivity
+  have hnear :
+      |(rnite (η * (2 : ℝ) ^ N) : ℝ) - η * (2 : ℝ) ^ N| ≤ 1 / 2 := by
+    simpa [abs_sub_comm] using rnite_nearest (η * (2 : ℝ) ^ N)
+  have heq :
+      (rnite (η * (2 : ℝ) ^ N) : ℝ) / (2 : ℝ) ^ N - η
+      = ((rnite (η * (2 : ℝ) ^ N) : ℝ) - η * (2 : ℝ) ^ N)
+          / (2 : ℝ) ^ N := by
+    field_simp
+  rw [heq, abs_div, abs_of_pos hden]
+  calc
+    |(rnite (η * (2 : ℝ) ^ N) : ℝ) - η * (2 : ℝ) ^ N|
+          / (2 : ℝ) ^ N
+        ≤ (1 / 2) / (2 : ℝ) ^ N :=
+      div_le_div_of_nonneg_right hnear hden.le
+    _ = 1 / (2 * (2 : ℝ) ^ N) := by ring
+
+/-
+For an input fraction in [0,1), RNITE's nonnegative integer result is at most
+2^N, so converting it to Nat preserves both its value and its bound.
+-/
+lemma src_rnite_toNat_le (N : ℕ) (η : ℝ)
+    (hη0 : 0 ≤ η) (hη1 : η < 1) :
+    (rnite (η * (2 : ℝ) ^ N)).toNat ≤ 2 ^ N := by
+  have hrange := rnite_range N (η * (2 : ℝ) ^ N)
+    (by positivity) (by nlinarith [pow_pos (zero_lt_two' ℝ) N])
+  rw [← Int.ofNat_le, Int.toNat_of_nonneg hrange.1]
+  norm_num
+  exact hrange.2
+
+/-
+Nat form of `src_quantization_error_bound`, suitable for the threshold used by
+the executable stochastic-rounding rule.
+-/
+lemma src_quantization_error_bound_toNat (N : ℕ) (η : ℝ)
+    (hη0 : 0 ≤ η) (hη1 : η < 1) :
+    |((rnite (η * (2 : ℝ) ^ N)).toNat : ℝ) / (2 : ℝ) ^ N - η|
+      ≤ 1 / (2 * (2 : ℝ) ^ N) := by
+  have hrange := rnite_range N (η * (2 : ℝ) ^ N)
+    (by positivity) (by nlinarith [pow_pos (zero_lt_two' ℝ) N])
+  have hcast :
+      (((rnite (η * (2 : ℝ) ^ N)).toNat : ℕ) : ℝ)
+      = (rnite (η * (2 : ℝ) ^ N) : ℝ) := by
+    exact_mod_cast Int.toNat_of_nonneg hrange.1
+  rw [hcast]
+  exact src_quantization_error_bound N η
+
+/-! ## Phase 4: Accumulated error relative to the original inputs -/
+
+/-
+For independent SRC roundings, the accumulated second moment relative to the
+original inputs is the sum of the Bernoulli variances plus the square of the
+total nearest-even error. This includes the endpoint k = 2^N.
+-/
+theorem src_summation_second_moment_eq (n : ℕ) (N : ℕ)
+    (ks : Fin n → ℕ) (hks : ∀ i, ks i ≤ 2 ^ N)
+    (ηs : Fin n → ℝ) (err : Fin n → ℕ → ℝ)
+    (herr : ∀ i R, err i R =
+      if 2 ^ N ≤ ks i + R then 1 - ηs i else -(ηs i)) :
+    (∑ Rs ∈ Finset.univ (α := Fin n → Fin (2 ^ N)),
+      (∑ i : Fin n, err i (Rs i).val) ^ 2)
+      / ((2 : ℝ) ^ N) ^ n
+    = (∑ i : Fin n,
+        ((ks i : ℝ) / (2 : ℝ) ^ N) *
+          (1 - (ks i : ℝ) / (2 : ℝ) ^ N))
+      + (∑ i : Fin n,
+          ((ks i : ℝ) / (2 : ℝ) ^ N - ηs i)) ^ 2 := by
+  let centered : Fin n → ℕ → ℝ := fun i R =>
+    if 2 ^ N ≤ ks i + R
+    then 1 - (ks i : ℝ) / (2 : ℝ) ^ N
+    else -((ks i : ℝ) / (2 : ℝ) ^ N)
+  let shift : Fin n → ℝ := fun i =>
+    (ks i : ℝ) / (2 : ℝ) ^ N - ηs i
+  have h_mean : ∀ i,
+      (∑ R ∈ Finset.range (2 ^ N), centered i R) = 0 := by
+    intro i
+    exact src_centered_sum N (ks i) (hks i)
+  have hdecomp : ∀ i R, err i R = centered i R + shift i := by
+    intro i R
+    rw [herr i R]
+    dsimp [centered, shift]
+    split_ifs <;> ring
+  simp_rw [hdecomp]
+  calc
+    (∑ Rs ∈ Finset.univ (α := Fin n → Fin (2 ^ N)),
+        (∑ i : Fin n, (centered i (Rs i).val + shift i)) ^ 2)
+        / ((2 : ℝ) ^ N) ^ n
+        = (∑ Rs ∈ Finset.univ (α := Fin n → Fin (2 ^ N)),
+            (∑ i : Fin n, centered i (Rs i).val) ^ 2)
+            / ((2 : ℝ) ^ N) ^ n
+          + (∑ i : Fin n, shift i) ^ 2 :=
+      mean_square_add_shifts n N centered shift h_mean
+    _ = (∑ i : Fin n,
+          ((ks i : ℝ) / (2 : ℝ) ^ N) *
+            (1 - (ks i : ℝ) / (2 : ℝ) ^ N))
+        + (∑ i : Fin n, shift i) ^ 2 := by
+      rw [variance_sum_eq n N centered h_mean]
+      congr 1
+      apply Finset.sum_congr rfl
+      intro i _
+      dsimp [centered]
+      have hsquares :
+          (∑ R ∈ Finset.range (2 ^ N),
+            (if 2 ^ N ≤ ks i + R
+              then 1 - (ks i : ℝ) / (2 : ℝ) ^ N
+              else -((ks i : ℝ) / (2 : ℝ) ^ N)) ^ 2)
+          = ∑ R ∈ Finset.range (2 ^ N),
+              if 2 ^ N ≤ ks i + R
+              then (1 - (ks i : ℝ) / (2 : ℝ) ^ N) ^ 2
+              else ((ks i : ℝ) / (2 : ℝ) ^ N) ^ 2 := by
+        apply Finset.sum_congr rfl
+        intro R _
+        split_ifs <;> ring
+      rw [hsquares]
+      rw [← src_centered_second_moment N (ks i) (hks i)]
+      ring
+    _ = (∑ i : Fin n,
+          ((ks i : ℝ) / (2 : ℝ) ^ N) *
+            (1 - (ks i : ℝ) / (2 : ℝ) ^ N))
+        + (∑ i : Fin n,
+            ((ks i : ℝ) / (2 : ℝ) ^ N - ηs i)) ^ 2 := by
+      rfl
+
+/-
+The Bernoulli variance is at most 1/4, leaving only the square of the total
+nearest-even error as a possible accumulated bias term.
+-/
+theorem src_summation_second_moment_bound (n : ℕ) (N : ℕ)
+    (ks : Fin n → ℕ) (hks : ∀ i, ks i ≤ 2 ^ N)
+    (ηs : Fin n → ℝ) (err : Fin n → ℕ → ℝ)
+    (herr : ∀ i R, err i R =
+      if 2 ^ N ≤ ks i + R then 1 - ηs i else -(ηs i)) :
+    (∑ Rs ∈ Finset.univ (α := Fin n → Fin (2 ^ N)),
+      (∑ i : Fin n, err i (Rs i).val) ^ 2)
+      / ((2 : ℝ) ^ N) ^ n
+    ≤ (n : ℝ) / 4
+      + (∑ i : Fin n,
+          ((ks i : ℝ) / (2 : ℝ) ^ N - ηs i)) ^ 2 := by
+  rw [src_summation_second_moment_eq n N ks hks ηs err herr]
+  apply add_le_add_left
+  calc
+    (∑ i : Fin n,
+        ((ks i : ℝ) / (2 : ℝ) ^ N) *
+          (1 - (ks i : ℝ) / (2 : ℝ) ^ N))
+        ≤ ∑ _i : Fin n, (1 / 4 : ℝ) :=
+      Finset.sum_le_sum fun i _ =>
+        variance_single_le_quarter ((ks i : ℝ) / (2 : ℝ) ^ N)
+    _ = (n : ℝ) / 4 := by simp; ring
+
+/-
+RMS form of `src_summation_second_moment_bound`.
+-/
+theorem src_summation_rms_bound_vs_input (n : ℕ) (N : ℕ)
+    (ks : Fin n → ℕ) (hks : ∀ i, ks i ≤ 2 ^ N)
+    (ηs : Fin n → ℝ) (err : Fin n → ℕ → ℝ)
+    (herr : ∀ i R, err i R =
+      if 2 ^ N ≤ ks i + R then 1 - ηs i else -(ηs i)) :
+    Real.sqrt ((∑ Rs ∈ Finset.univ (α := Fin n → Fin (2 ^ N)),
+      (∑ i : Fin n, err i (Rs i).val) ^ 2)
+      / ((2 : ℝ) ^ N) ^ n)
+    ≤ Real.sqrt ((n : ℝ) / 4
+        + (∑ i : Fin n,
+            ((ks i : ℝ) / (2 : ℝ) ^ N - ηs i)) ^ 2) := by
+  exact Real.sqrt_le_sqrt
+    (src_summation_second_moment_bound n N ks hks ηs err herr)
+
+/-
+For nearest-even preprocessing, each deterministic error is at most
+2^-(N+1). Thus arbitrary inputs have an RMS bound with an explicit quadratic
+bias term. The term cannot in general be reduced to O(√n).
+-/
+theorem src_summation_rms_bound_of_nearest (n : ℕ) (N : ℕ)
+    (ks : Fin n → ℕ) (hks : ∀ i, ks i ≤ 2 ^ N)
+    (ηs : Fin n → ℝ) (err : Fin n → ℕ → ℝ)
+    (herr : ∀ i R, err i R =
+      if 2 ^ N ≤ ks i + R then 1 - ηs i else -(ηs i))
+    (hnear : ∀ i,
+      |(ks i : ℝ) / (2 : ℝ) ^ N - ηs i|
+        ≤ 1 / (2 * (2 : ℝ) ^ N)) :
+    Real.sqrt ((∑ Rs ∈ Finset.univ (α := Fin n → Fin (2 ^ N)),
+      (∑ i : Fin n, err i (Rs i).val) ^ 2)
+      / ((2 : ℝ) ^ N) ^ n)
+    ≤ Real.sqrt ((n : ℝ) / 4
+        + ((n : ℝ) * (1 / (2 * (2 : ℝ) ^ N))) ^ 2) := by
+  let δ : Fin n → ℝ := fun i =>
+    (ks i : ℝ) / (2 : ℝ) ^ N - ηs i
+  have habs :
+      |∑ i : Fin n, δ i|
+      ≤ (n : ℝ) * (1 / (2 * (2 : ℝ) ^ N)) := by
+    calc
+      |∑ i : Fin n, δ i| ≤ ∑ i : Fin n, |δ i| := by
+        simpa using Finset.abs_sum_le_sum_abs δ Finset.univ
+      _ ≤ ∑ _i : Fin n, (1 / (2 * (2 : ℝ) ^ N) : ℝ) :=
+        Finset.sum_le_sum fun i _ => hnear i
+      _ = (n : ℝ) * (1 / (2 * (2 : ℝ) ^ N)) := by simp
+  have hnonneg :
+      0 ≤ (n : ℝ) * (1 / (2 * (2 : ℝ) ^ N)) := by positivity
+  have hsq :
+      (∑ i : Fin n, δ i) ^ 2
+      ≤ ((n : ℝ) * (1 / (2 * (2 : ℝ) ^ N))) ^ 2 := by
+    rw [sq_le_sq, abs_of_nonneg hnonneg]
+    exact habs
+  calc
+    Real.sqrt ((∑ Rs ∈ Finset.univ (α := Fin n → Fin (2 ^ N)),
+        (∑ i : Fin n, err i (Rs i).val) ^ 2)
+        / ((2 : ℝ) ^ N) ^ n)
+        ≤ Real.sqrt ((n : ℝ) / 4 + (∑ i : Fin n, δ i) ^ 2) :=
+      src_summation_rms_bound_vs_input n N ks hks ηs err herr
+    _ ≤ Real.sqrt ((n : ℝ) / 4
+        + ((n : ℝ) * (1 / (2 * (2 : ℝ) ^ N))) ^ 2) := by
+      apply Real.sqrt_le_sqrt
+      gcongr
+
+/-
+If the nearest-even errors cancel, the full SRC error relative to the original
+inputs has the same √n/2 RMS bound as its centered stochastic stage.
+-/
+theorem src_summation_sqrt_n_of_zero_bias (n : ℕ) (N : ℕ)
+    (ks : Fin n → ℕ) (hks : ∀ i, ks i ≤ 2 ^ N)
+    (ηs : Fin n → ℝ) (err : Fin n → ℕ → ℝ)
+    (herr : ∀ i R, err i R =
+      if 2 ^ N ≤ ks i + R then 1 - ηs i else -(ηs i))
+    (hbias : (∑ i : Fin n,
+      ((ks i : ℝ) / (2 : ℝ) ^ N - ηs i)) = 0) :
+    Real.sqrt ((∑ Rs ∈ Finset.univ (α := Fin n → Fin (2 ^ N)),
+      (∑ i : Fin n, err i (Rs i).val) ^ 2)
+      / ((2 : ℝ) ^ N) ^ n)
+    ≤ Real.sqrt (n : ℝ) / 2 := by
+  have h := src_summation_rms_bound_vs_input n N ks hks ηs err herr
+  rw [hbias] at h
+  convert h using 1 <;> norm_num
+
+/-
+Over a complete D-bit input grid, the nearest-even preprocessing errors sum
+to zero after scaling back to output ULPs.
+-/
+lemma src_quantization_error_sum_finite (N D : ℕ) (hN : 0 < N) :
+    (∑ j : Fin (2 ^ D),
+      ((((rnite (((j : ℝ) / (2 : ℝ) ^ D) * (2 : ℝ) ^ N)).toNat : ℕ) : ℝ)
+          / (2 : ℝ) ^ N
+        - (j : ℝ) / (2 : ℝ) ^ D)) = 0 := by
+  rw [Fin.sum_univ_eq_sum_range
+    (fun j : ℕ =>
+      ((((rnite (((j : ℝ) / (2 : ℝ) ^ D) * (2 : ℝ) ^ N)).toNat : ℕ) : ℝ)
+          / (2 : ℝ) ^ N
+        - (j : ℝ) / (2 : ℝ) ^ D))
+    (2 ^ D)]
+  calc
+    _ = ∑ j ∈ Finset.range (2 ^ D),
+        ((rnite ((j : ℝ) * (2 : ℝ) ^ N / (2 : ℝ) ^ D) : ℝ)
+            - (j : ℝ) * (2 : ℝ) ^ N / (2 : ℝ) ^ D)
+          / (2 : ℝ) ^ N := by
+      apply Finset.sum_congr rfl
+      intro j hj
+      have hj' : j < 2 ^ D := Finset.mem_range.mp hj
+      have hxlt :
+          (j : ℝ) * (2 : ℝ) ^ N / (2 : ℝ) ^ D < (2 : ℝ) ^ N := by
+        rw [div_lt_iff₀ (by positivity)]
+        have hjr : (j : ℝ) < (2 : ℝ) ^ D := by exact_mod_cast hj'
+        nlinarith [mul_lt_mul_of_pos_right hjr
+          (pow_pos (zero_lt_two' ℝ) N)]
+      have hrange := rnite_range N
+        ((j : ℝ) * (2 : ℝ) ^ N / (2 : ℝ) ^ D)
+        (by positivity) hxlt
+      have hcast :
+          (((rnite ((j : ℝ) * (2 : ℝ) ^ N / (2 : ℝ) ^ D)).toNat : ℕ) : ℝ)
+          = (rnite ((j : ℝ) * (2 : ℝ) ^ N / (2 : ℝ) ^ D) : ℝ) := by
+        exact_mod_cast Int.toNat_of_nonneg hrange.1
+      rw [show ((j : ℝ) / (2 : ℝ) ^ D) * (2 : ℝ) ^ N
+          = (j : ℝ) * (2 : ℝ) ^ N / (2 : ℝ) ^ D by ring]
+      rw [hcast]
+      field_simp
+    _ = (∑ j ∈ Finset.range (2 ^ D),
+          ((rnite ((j : ℝ) * (2 : ℝ) ^ N / (2 : ℝ) ^ D) : ℝ)
+            - (j : ℝ) * (2 : ℝ) ^ N / (2 : ℝ) ^ D))
+          / (2 : ℝ) ^ N := by
+      rw [Finset.sum_div]
+    _ = 0 := by
+      rw [rnite_unbiased_finite N D hN]
+      simp
+
+/-
+For one independent Variant C rounding at every point of a complete D-bit
+input grid, the full accumulated error relative to the original inputs has
+RMS at most √(2^D)/2 output ULPs.
+-/
+theorem src_grid_summation_sqrt_n (N D : ℕ) (hN : 0 < N)
+    (err : Fin (2 ^ D) → ℕ → ℝ)
+    (herr : ∀ j R, err j R =
+      if 2 ^ N ≤
+          (rnite (((j : ℝ) / (2 : ℝ) ^ D) * (2 : ℝ) ^ N)).toNat + R
+      then 1 - (j : ℝ) / (2 : ℝ) ^ D
+      else -((j : ℝ) / (2 : ℝ) ^ D)) :
+    Real.sqrt ((∑ Rs ∈ Finset.univ
+        (α := Fin (2 ^ D) → Fin (2 ^ N)),
+      (∑ j : Fin (2 ^ D), err j (Rs j).val) ^ 2)
+      / ((2 : ℝ) ^ N) ^ (2 ^ D))
+    ≤ Real.sqrt ((2 ^ D : ℕ) : ℝ) / 2 := by
+  let ηs : Fin (2 ^ D) → ℝ := fun j => (j : ℝ) / (2 : ℝ) ^ D
+  let ks : Fin (2 ^ D) → ℕ := fun j =>
+    (rnite (ηs j * (2 : ℝ) ^ N)).toNat
+  have hks : ∀ j, ks j ≤ 2 ^ N := by
+    intro j
+    apply src_rnite_toNat_le N (ηs j)
+    · dsimp [ηs]
+      positivity
+    · dsimp [ηs]
+      rw [div_lt_iff₀ (by positivity)]
+      simpa using (show (j : ℝ) < (2 : ℝ) ^ D by exact_mod_cast j.isLt)
+  have herr' : ∀ j R, err j R =
+      if 2 ^ N ≤ ks j + R then 1 - ηs j else -(ηs j) := by
+    intro j R
+    simpa [ks, ηs] using herr j R
+  have hbias :
+      (∑ j : Fin (2 ^ D),
+        ((ks j : ℝ) / (2 : ℝ) ^ N - ηs j)) = 0 := by
+    simpa only [ks, ηs] using src_quantization_error_sum_finite N D hN
+  exact src_summation_sqrt_n_of_zero_bias (2 ^ D) N
+    ks hks ηs err herr' hbias
+
+/-! ## Phase 5: RMS bound for SRC's stochastic stage -/
 
 /-
 After RNITE has quantized each fractional input to η' = k/2^N, the remaining
