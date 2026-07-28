@@ -97,12 +97,12 @@ def neg (x : Value f) : Value f :=
 
 def addExact (x y : Value f) : Value f :=
   match x, y with
-  | .nan, _ => y
-  | _, .nan => x
+  | .nan, _ => .nan
+  | _, .nan => .nan
   | .posInf, .posInf => .posInf
   | .negInf, .negInf => .negInf
-  | .posInf, .negInf => .negInf
-  | .negInf, .posInf => .negInf
+  | .posInf, .negInf => .nan
+  | .negInf, .posInf => .nan
   | .posInf, _ => .posInf
   | .negInf, _ => .negInf
   | _, .posInf => .posInf
@@ -133,8 +133,7 @@ def mulExact (x y : Value f) : Value f :=
   | .finite m _, .negInf =>
     if m = 0 then .nan else if m < 0 then .posInf else .negInf
   | .finite m1 e1, .finite m2 e2 =>
-    if m1 = 0 ∨ m2 = 0 then .nan else
-      .finite (m1 * m2) (e1 + e2)
+    .finite (m1 * m2) (e1 + e2)
 
 lemma toEReal_neg (x : Value f) :
     toEReal (neg x) = - (toEReal x) := by
@@ -163,16 +162,6 @@ lemma toEReal_addExact_finite (f : p3109_format) (m1 m2 : ℤ) (e1 e2 : Int) :
       ring_nf
     simpa [EReal.coe_mul, EReal.coe_add, coe_two_zpow] using
       congrArg (fun r : ℝ => (r : EReal)) hreal
-
-lemma toEReal_addExact (x y : Value f) :
-    toEReal (addExact x y) = toEReal x + toEReal y := by
-  rcases x with ( _ | _ | _ | x ) <;> rcases y with ( _ | _ | _ | y ) <;> norm_num [ toEReal, mul_assoc, mul_comm, mul_left_comm ];
-  all_goals norm_cast;
-  convert toEReal_addExact_finite f x y _ _ using 1
-
-lemma toEReal_subExact (x y : Value f) :
-    toEReal (subExact x y) = toEReal x - toEReal y := by
-  rw [ subExact, toEReal_addExact, toEReal_neg, sub_eq_add_neg ]
 
 lemma toEReal_mulExact_posInf_finite (f : p3109_format) (m : ℤ) (e : Int) :
     toEReal (mulExact (f := f) (Value.posInf (f := f)) (Value.finite (f := f) m e)) =
@@ -261,24 +250,11 @@ lemma toEReal_mulExact_finite_negInf (f : p3109_format) (m : ℤ) (e : Int) :
 lemma toEReal_mulExact_finite (f : p3109_format) (m1 m2 : ℤ) (e1 e2 : Int) :
     toEReal (mulExact (f := f) (Value.finite (f := f) m1 e1) (Value.finite (f := f) m2 e2)) =
       toEReal (Value.finite (f := f) m1 e1) * toEReal (Value.finite (f := f) m2 e2) := by
-  by_cases h1 : m1 = 0
-  · simp [mulExact, h1]
-  by_cases h2 : m2 = 0
-  · simp [mulExact, h1, h2]
-  simp [mulExact, h1, h2, EReal.coe_mul]
+  simp [mulExact, EReal.coe_mul]
   rw [zpow_add₀] <;> norm_num
   norm_cast
   push_cast
   ring_nf
-
-lemma toEReal_mulExact (x y : Value f) :
-    toEReal (mulExact x y) = toEReal x * toEReal y := by
-  cases x <;> cases y <;> simp [mulExact]
-  · exact toEReal_mulExact_posInf_finite f _ _
-  · exact toEReal_mulExact_negInf_finite f _ _
-  · exact toEReal_mulExact_finite_posInf f _ _
-  · exact toEReal_mulExact_finite_negInf f _ _
-  · exact toEReal_mulExact_finite f _ _ _ _
 
 lemma toEReal_fromBits (x : Bits f) :
     toEReal (fromBits (f := f) x) = p3109.to_ereal (p3109.n_to_p3109 (f := f) x) := by

@@ -30,10 +30,12 @@ Properties of stochastic rounding modes A, B, and C from the P3109 standard,
 * `gauss_sum_real`: The Gauss arithmetic sum identity over ℝ.
 * `stochastic_A_exact_bias`: The exact bias is −1/2^{N+1}.
 
-### SRF (Mode B) unbiasedness and √n bound
+### SRF (Mode B) on the N-bit fractional grid
+* `srf_continuous_exact_bias`: Zero aggregate bias for a fractional part
+  uniformly distributed on [0, 1).
 * `srf_roundup_count`: Round-up count with +½ offset.
-* `srf_pointwise_unbiased`: Pointwise unbiasedness of SRF.
-* `srf_exact_bias`: Exact bias of SRF is zero.
+* `srf_pointwise_unbiased`: Pointwise unbiasedness when η = k/2^N.
+* `srf_exact_bias`: Exact aggregate bias on that grid is zero.
 * `srf_second_moment`: Second moment of SRF rounding error.
 * `variance_single_le_quarter`: η(1−η) ≤ 1/4.
 * `independent_cross_term_zero`: Cross terms vanish for zero-mean functions.
@@ -41,6 +43,13 @@ Properties of stochastic rounding modes A, B, and C from the P3109 standard,
 * `variance_sum_bound`: Variance of sum bounded by n/4.
 * `srf_summation_rms_bound`: RMS summation error ≤ √(n/4).
 * `srf_summation_sqrt_n`: RMS summation error ≤ √n/2.
+
+### SRC (Mode C) on finite-precision inputs
+* `src_exact_bias_finite_precision`: Zero aggregate bias over a D-bit input
+  grid and all N-bit random choices, for N > 0.
+* `src_zero_bits_half_bias`: The N > 0 hypothesis is necessary.
+* `src_quantized_summation_sqrt_n`: RMS bound for the second stochastic
+  stage relative to its RNITE-quantized input, not relative to the original η.
 -/
 
 open Classical Finset
@@ -234,7 +243,25 @@ theorem stochastic_A_exact_bias (N : ℕ) :
   norm_num [ sq, pow_mul' ] ; ring;
   norm_num [ pow_mul', ← mul_pow ]
 
-/-! ## Phase 1: SRF Unbiasedness -/
+/-! ## SRF (Mode B) unbiasedness -/
+
+/-
+The aggregate SRF bias for a fractional part uniformly distributed on [0, 1)
+is zero. For each random choice R, the measure of inputs that round up is
+(R + 1/2) / 2^N. Averaging those measures over all 2^N choices gives 1/2,
+which cancels the mean input fractional part.
+-/
+theorem srf_continuous_exact_bias (N : ℕ) :
+    (2 : ℝ) ^ (-N : ℤ) *
+        (∑ R ∈ Finset.range (2 ^ N), ((R : ℝ) + 1 / 2) / (2 : ℝ) ^ N) -
+      1 / 2 = 0 := by
+  rw [← Finset.sum_div]
+  rw [Finset.sum_add_distrib, gauss_sum_real]
+  simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul, Nat.cast_pow,
+    Nat.cast_ofNat]
+  rw [zpow_neg, zpow_natCast]
+  field_simp
+  ring
 
 /-
 The +½ offset in SRF makes the discrete average exact. The condition becomes
@@ -254,8 +281,8 @@ lemma srf_roundup_count (N : ℕ) (k : ℕ) (hk : k < 2 ^ N) :
     norm_cast ; linarith
 
 /-
-Direct consequence of `srf_roundup_count`. The average round-up probability
-equals k/2^N = η, so the bias is zero for each discretized η.
+Direct consequence of `srf_roundup_count`. At η = k/2^N, the average round-up
+probability equals η, so the bias is zero at each N-bit fractional position.
 -/
 lemma srf_pointwise_unbiased (N : ℕ)
     (k : ℕ) (hk : k < 2 ^ N) :
@@ -266,10 +293,10 @@ lemma srf_pointwise_unbiased (N : ℕ)
   convert congr_arg ( fun x : ℕ => ( x : ℝ ) / 2 ^ N ) ( srf_roundup_count ( N := N ) ( k := k ) hk ) using 1
 
 /-
-The overall SRF bias is zero: the average rounding error, computed by summing
-the error for each (k, R) pair, is exactly 0. For each k, the inner sum over R
-decomposes into k terms of (1 − k/2^N) and (2^N − k) terms of (−k/2^N),
-which telescope to 0. The original roadmap formulation
+The aggregate SRF bias on the N-bit fractional grid is zero: the average
+rounding error, computed by summing the error for each (k, R) pair, is exactly
+0. For each k, the inner sum over R decomposes into k terms of (1 − k/2^N)
+and (2^N − k) terms of (−k/2^N), which telescope to 0. The original roadmap formulation
 `∑(2^N − k) / (2^N)^2 − 1/2 = 0` was incorrect (it equals 1/2^{N+1}).
 -/
 theorem srf_exact_bias (N : ℕ) :
@@ -642,6 +669,15 @@ theorem src_exact_bias_finite_precision (N D : ℕ) (hN : 0 < N) :
   norm_num [ sub_div, Finset.sum_div _ _ _ ];
   exact Finset.sum_congr rfl fun _ _ => by rw [ eq_div_iff ( by positivity ) ] ; ring;
 
+/-
+The positive-random-bit hypothesis above is necessary. With N = 0 and
+η = 1/2, RNITE ties to the even integer zero, giving bias -1/2.
+-/
+theorem src_zero_bits_half_bias :
+    (rnite (((1 : ℝ) / 2) * 2 ^ 0) : ℝ) / 2 ^ 0 - (1 : ℝ) / 2 =
+      -(1 : ℝ) / 2 := by
+  norm_num [rnite, Int.fract]
+
 /-! ## Phase 3: SRC Variance Bound -/
 
 /-
@@ -675,13 +711,15 @@ lemma src_variance_vs_true_input (_N : ℕ) (_hN : 0 < _N)
     η' * (1 - η) ^ 2 + (1 - η') * η ^ 2 ≤ 1 / 4 + |η' - η| := by
   cases abs_cases ( η' - η ) <;> push_cast [ * ] <;> nlinarith [ sq_nonneg ( η - 1 / 2 ) ]
 
-/-! ## Phase 4: Assembly — √n for SRC -/
+/-! ## Phase 4: RMS bound for SRC's stochastic stage -/
 
 /-
-For n independent SRC stochastic roundings with N random bits,
-the RMS total error is at most √n / 2 ULPs.
+After RNITE has quantized each fractional input to η' = k/2^N, the remaining
+SRC stage is SRFF at η'. For independent random choices, its accumulated error
+relative to η' has RMS at most √n / 2 ULPs. This theorem deliberately does not
+claim a bound relative to the original η; that error also includes η' - η.
 -/
-theorem src_summation_sqrt_n (n : ℕ) (N : ℕ)
+theorem src_quantized_summation_sqrt_n (n : ℕ) (N : ℕ)
     (ks : Fin n → ℕ) (hks : ∀ i, ks i < 2 ^ N)
     (err : Fin n → ℕ → ℝ)
     (herr : ∀ i R, err i R =

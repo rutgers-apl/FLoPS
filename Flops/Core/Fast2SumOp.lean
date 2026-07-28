@@ -218,30 +218,32 @@ lemma rnd_multiple [Faithful rnd] (f : float 2) :
   simp only [to_real, Nat.cast_ofNat]
 
 -- the same proof as in the handbook
-lemma fast2sum_rne_t_exact (a b : float 2) (rnd2 rnd3 : ℤ → ℝ → ℤ) [Faithful rnd2] [Faithful rnd3] :
+lemma fast2sum_rn_t_exact (a b : float 2)
+  (rnd1 rnd2 rnd3 : ℤ → ℝ → ℤ)
+  [Faithful rnd1] [Faithful rnd2] [Faithful rnd3] :
+  @nearest 2 format (a + b) (@round_fp format rnd1 (a + b)) →
   @canonical 2 format a →
   @canonical 2 format b →
   b.exp ≤ a.exp →
-  match @fast2sum_op format a b (round_choice_abs (@to_even' format)) rnd2 rnd3 with
+  match @fast2sum_op format a b rnd1 rnd2 rnd3 with
   |(s, t) => (t:ℝ) = a+b-s := by
-  intro ha hb hle
+  intro hnearest ha hb hle
   simp only [fast2sum_op]
-  set s := @round_fp format (round_choice_abs (@to_even' format)) (a + b) with hs
+  set s := @round_fp format rnd1 (a + b) with hs
   set z := @round_fp format rnd2 (s - a : ℝ) with hz
   set t := @round_fp format rnd3 (b - z : ℝ) with ht
   have := @fast2sum_z_exact format
-    (round_choice_abs (@to_even' format))
+    rnd1
     rnd2
     _ _ a b (canonical_bounded ha) (canonical_bounded hb) hle
   simp only at this
   rw [<-hs, <-hz] at this
   rw [this, sub_sub_eq_add_sub, add_comm] at ht
-  have ⟨⟨_, htight⟩, _⟩ := @rne_abs_correct format (a+b)
+  have ⟨_, htight⟩ := hnearest
   have := htight a (canonical_bounded ha)
   clear htight
   simp only [sub_add_cancel_left, abs_neg] at this
   rw [abs_sub_comm] at this
-  simp only [rne_abs, <- hs] at this
 
   have heq : (a+b:ℝ) = (a.fnum * 2^(a.exp-b.exp)+b.fnum) * 2^b.exp := by
     simp only [to_real, Nat.cast_ofNat]
@@ -251,7 +253,7 @@ lemma fast2sum_rne_t_exact (a b : float 2) (rnd2 rnd3 : ℤ → ℝ → ℤ) [Fa
   have heq : (a.exp-b.exp)=(a.exp-b.exp).toNat := by simp only [Int.ofNat_toNat, left_eq_sup, Int.sub_nonneg]; exact hle
   rw [heq] at hs this ht ⊢
   norm_cast at hs this ht ⊢
-  have round := @rnd_multiple format (round_choice_abs (@to_even' format)) _ ⟨a.fnum * 2^(a.exp-b.exp).toNat+b.fnum, b.exp⟩ (by simp only; have ⟨_, _⟩ := canonical_bounded hb; assumption)
+  have round := @rnd_multiple format rnd1 _ ⟨a.fnum * 2^(a.exp-b.exp).toNat+b.fnum, b.exp⟩ (by simp only; have ⟨_, _⟩ := canonical_bounded hb; assumption)
   simp only at round
   have ⟨m, heq⟩ := round
   simp only [to_real, Int.cast_add, Int.cast_mul, Int.cast_pow, Int.cast_ofNat, Nat.cast_ofNat] at heq
@@ -278,6 +280,17 @@ lemma fast2sum_rne_t_exact (a b : float 2) (rnd2 rnd3 : ℤ → ℝ → ℤ) [Fa
   simp only [to_real, Nat.cast_ofNat] at self
   rw [<-ht] at self
   exact self
+
+lemma fast2sum_rne_t_exact (a b : float 2) (rnd2 rnd3 : ℤ → ℝ → ℤ)
+  [Faithful rnd2] [Faithful rnd3] :
+  @canonical 2 format a →
+  @canonical 2 format b →
+  b.exp ≤ a.exp →
+  match @fast2sum_op format a b (round_choice_abs (@to_even' format)) rnd2 rnd3 with
+  |(s, t) => (t:ℝ) = a+b-s := by
+  apply @fast2sum_rn_t_exact format a b
+    (round_choice_abs (@to_even' format)) rnd2 rnd3
+  exact (@rne_abs_correct format (a + b)).1
 
 /-
 Helper: if a = m * 2^b.exp and a is canonical with a.exp < b.exp, then ⟨m, b.exp⟩ is bounded

@@ -13,6 +13,20 @@ noncomputable def project (x : EReal) (rnd : RoundingMode) (sat : SaturationMode
   let e := @encode f S (@in_value_set f x rnd sat);
   e
 
+/-- P3109 projection from the full closed-extended-real domain to the ADT. -/
+noncomputable def project_total
+    (x : EReal ⊕ Unit) (rnd : RoundingMode) (sat : SaturationMode) : p3109 f :=
+  match x with
+  | Sum.inr () => .p3109_nan
+  | Sum.inl e => @project f e rnd sat
+
+@[simp] lemma project_total_nan (rnd : RoundingMode) (sat : SaturationMode) :
+    @project_total f (Sum.inr ()) rnd sat = .p3109_nan := rfl
+
+@[simp] lemma project_total_inl
+    (x : EReal) (rnd : RoundingMode) (sat : SaturationMode) :
+    @project_total f (Sum.inl x) rnd sat = @project f x rnd sat := rfl
+
 lemma encode_to_ereal_local (v : EReal) (h : Sum.inl v ∈ value_set f) :
     (@encode f (Sum.inl v) h : EReal) = v := by
   cases v;

@@ -235,7 +235,7 @@ lemma fast2sum_sat_error_bounded' [Faithful rnd2] [Faithful rnd3] {f : p3109_for
   simp only [to_format, neg_neg] at hle
   exact hle
 
-lemma fast2sum_sat_min_error_bounded' [ValidRound rnd2] [ValidRound rnd3] {f : p3109_format} (a b : float 2) :
+lemma fast2sum_sat_min_error_bounded' [Faithful rnd2] [Faithful rnd3] {f : p3109_format} (a b : float 2) :
   f.s = .signed →
   @canonical_p3109 f a →
   @canonical_p3109 f b →
@@ -354,4 +354,26 @@ lemma fast2sum_sat_error_bounded {rnd2 rnd3 : RoundingMode} :
   repeat (
     split;
     repeat rw [fast2sum_sat_error_bounded' _ _ ha hb hle hapos hovf]
+  )
+
+lemma fast2sum_sat_min_error_bounded {rnd2 rnd3 : RoundingMode} :
+  f.s = .signed →
+  @canonical_p3109 f a →
+  @canonical_p3109 f b →
+  b.exp ≤ a.exp →
+  (a + b : ℝ) < @min_finite f →
+  let z := @round_to_fp f rnd2 (@min_finite f - a);
+  let t := @round_to_fp f rnd3 (b - z)
+  (t : ℝ) = a + b - @min_finite f := by
+  intro hs ha hb hle hovf
+  simp only
+  have hneg := overflow_a_neg hs ha hb hle hovf
+  simp only [round_to_fp]
+  simp only [rne_abs]
+  simp only [round_to_zero_all]
+  simp only [rna_float, round_nearest_all]
+  split
+  repeat (
+    split
+    repeat rw [fast2sum_sat_min_error_bounded' _ _ hs ha hb hle hneg hovf]
   )

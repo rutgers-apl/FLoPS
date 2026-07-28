@@ -1,0 +1,14 @@
+Binary4p1se zero finite:1:-3 finite:1:-2 finite:1:-1 finite:1:0 finite:1:1 finite:1:2 +inf nan finite:-1:-3 finite:-1:-2 finite:-1:-1 finite:-1:0 finite:-1:1 finite:-1:2 -inf
+Binary4p2se zero finite:1:-2 finite:2:-2 finite:3:-2 finite:2:-1 finite:3:-1 finite:2:0 +inf nan finite:-1:-2 finite:-2:-2 finite:-3:-2 finite:-2:-1 finite:-3:-1 finite:-2:0 -inf
+Binary4p3se zero finite:1:-2 finite:2:-2 finite:3:-2 finite:4:-2 finite:5:-2 finite:6:-2 +inf nan finite:-1:-2 finite:-2:-2 finite:-3:-2 finite:-4:-2 finite:-5:-2 finite:-6:-2 -inf
+Binary4p1sf zero finite:1:-3 finite:1:-2 finite:1:-1 finite:1:0 finite:1:1 finite:1:2 finite:1:3 nan finite:-1:-3 finite:-1:-2 finite:-1:-1 finite:-1:0 finite:-1:1 finite:-1:2 finite:-1:3
+Binary4p2sf zero finite:1:-2 finite:2:-2 finite:3:-2 finite:2:-1 finite:3:-1 finite:2:0 finite:3:0 nan finite:-1:-2 finite:-2:-2 finite:-3:-2 finite:-2:-1 finite:-3:-1 finite:-2:0 finite:-3:0
+Binary4p3sf zero finite:1:-2 finite:2:-2 finite:3:-2 finite:4:-2 finite:5:-2 finite:6:-2 finite:7:-2 nan finite:-1:-2 finite:-2:-2 finite:-3:-2 finite:-4:-2 finite:-5:-2 finite:-6:-2 finite:-7:-2
+Binary4p1ue zero finite:1:-7 finite:1:-6 finite:1:-5 finite:1:-4 finite:1:-3 finite:1:-2 finite:1:-1 finite:1:0 finite:1:1 finite:1:2 finite:1:3 finite:1:4 finite:1:5 +inf nan
+Binary4p2ue zero finite:1:-4 finite:2:-4 finite:3:-4 finite:2:-3 finite:3:-3 finite:2:-2 finite:3:-2 finite:2:-1 finite:3:-1 finite:2:0 finite:3:0 finite:2:1 finite:3:1 +inf nan
+Binary4p3ue zero finite:1:-3 finite:2:-3 finite:3:-3 finite:4:-3 finite:5:-3 finite:6:-3 finite:7:-3 finite:4:-2 finite:5:-2 finite:6:-2 finite:7:-2 finite:4:-1 finite:5:-1 +inf nan
+Binary4p4ue zero finite:1:-3 finite:2:-3 finite:3:-3 finite:4:-3 finite:5:-3 finite:6:-3 finite:7:-3 finite:8:-3 finite:9:-3 finite:10:-3 finite:11:-3 finite:12:-3 finite:13:-3 +inf nan
+Binary4p1uf zero finite:1:-7 finite:1:-6 finite:1:-5 finite:1:-4 finite:1:-3 finite:1:-2 finite:1:-1 finite:1:0 finite:1:1 finite:1:2 finite:1:3 finite:1:4 finite:1:5 finite:1:6 nan
+Binary4p2uf zero finite:1:-4 finite:2:-4 finite:3:-4 finite:2:-3 finite:3:-3 finite:2:-2 finite:3:-2 finite:2:-1 finite:3:-1 finite:2:0 finite:3:0 finite:2:1 finite:3:1 finite:2:2 nan
+Binary4p3uf zero finite:1:-3 finite:2:-3 finite:3:-3 finite:4:-3 finite:5:-3 finite:6:-3 finite:7:-3 finite:4:-2 finite:5:-2 finite:6:-2 finite:7:-2 finite:4:-1 finite:5:-1 finite:6:-1 nan
+Binary4p4uf zero finite:1:-3 finite:2:-3 finite:3:-3 finite:4:-3 finite:5:-3 finite:6:-3 finite:7:-3 finite:8:-3 finite:9:-3 finite:10:-3 finite:11:-3 finite:12:-3 finite:13:-3 finite:14:-3 nan

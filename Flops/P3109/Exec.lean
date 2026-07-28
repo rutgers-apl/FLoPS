@@ -9,4 +9,3 @@ import Flops.P3109.Exec.Project
 import Flops.P3109.Exec.Ops
 import Flops.P3109.Exec.Refinement
 import Flops.P3109.Exec.Tests
-import Flops.P3109.Exec.EvalTests

@@ -49,6 +49,20 @@ noncomputable def round_to_precision (x : EReal) (rnd : RoundingMode) : EReal :=
   |⊤ => x
   |(r : ℝ) => @round_to_precision_real f r rnd
 
+/-- P3109 rounding on the full closed-extended-real domain. -/
+noncomputable def round_to_precision_total
+    (x : EReal ⊕ Unit) (rnd : RoundingMode) : EReal ⊕ Unit :=
+  match x with
+  | Sum.inr () => Sum.inr ()
+  | Sum.inl e => Sum.inl (@round_to_precision f e rnd)
+
+@[simp] lemma round_to_precision_total_nan (rnd : RoundingMode) :
+    @round_to_precision_total f (Sum.inr ()) rnd = Sum.inr () := rfl
+
+@[simp] lemma round_to_precision_total_inl (x : EReal) (rnd : RoundingMode) :
+    @round_to_precision_total f (Sum.inl x) rnd =
+      Sum.inl (@round_to_precision f x rnd) := rfl
+
 def MonotonicMode (m : RoundingMode) := match m with
   |.StochasticA _ _ _ => False
   |.StochasticB _ _ _ => False
@@ -107,6 +121,12 @@ noncomputable def round_to_fp (rnd : RoundingMode) (x : ℝ) : float 2 :=
   |.StochasticA N R h => @round_fp format (stochastic (.A N R h)) x
   |.StochasticB N R h => @round_fp format (stochastic (.B N R h)) x
   |.StochasticC N R h => @round_fp format (stochastic (.C N R h)) x
+
+lemma round_to_fp_nearest (rnd : RoundingMode) (x : ℝ) (hrn : rnd.IsRN) :
+  @nearest 2 f.to_format x (@round_to_fp f rnd x) := by
+  rcases hrn with rfl | rfl
+  · exact (@rne_abs_correct (format := f.to_format) x).1
+  · exact (@rna_round_rne (format := f.to_format) x).1
 
 -- commuting between round_fp and round_to_fp
 lemma round_to_fp_eq_round_fp_to_rnd {f : p3109_format} {m : RoundingMode} :
@@ -360,6 +380,20 @@ noncomputable def saturate (x : EReal) (sat : SaturationMode) (rnd : RoundingMod
       |.RTO, .unsigned, .extended => Sum.inl (@max_finite f)
       |_, _, .finite => Sum.inr ()
       |_, _, .extended => Sum.inl ⊤
+
+/-- P3109 saturation on the full closed-extended-real domain. -/
+noncomputable def saturate_total
+    (x : EReal ⊕ Unit) (sat : SaturationMode) (rnd : RoundingMode) : EReal ⊕ Unit :=
+  match x with
+  | Sum.inr () => Sum.inr ()
+  | Sum.inl e => @saturate f e sat rnd
+
+@[simp] lemma saturate_total_nan (sat : SaturationMode) (rnd : RoundingMode) :
+    @saturate_total f (Sum.inr ()) sat rnd = Sum.inr () := rfl
+
+@[simp] lemma saturate_total_inl
+    (x : EReal) (sat : SaturationMode) (rnd : RoundingMode) :
+    @saturate_total f (Sum.inl x) sat rnd = @saturate f x sat rnd := rfl
 
 namespace p3109
 

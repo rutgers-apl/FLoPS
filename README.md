@@ -28,8 +28,9 @@ Science Technical Report DCS-TR-762, February 2026.
 - `Flops/P3109` contains the mathematical P3109 semantics, including
   definitions, rounding, projection, saturation, and arithmetic
   properties.
-- `Flops/P3109/Exec` contains the executable bit-level model and its
-  refinement proofs.
+- `Flops/P3109/Exec` contains the executable bit-level model, refinement
+  proofs for the representation, projection pipeline, and operations,
+  together with executable regression tests.
 - `Flops/AccSum` is retained from the reviewed artifact for the
   ExtractScalar case study. It is not part of the P3109 semantic model
   and is unchanged by the camera-ready artifact update.
@@ -50,10 +51,12 @@ The P3109 development includes:
 `Flops/P3109/Exec.lean` is the entry point for the executable artifact.
 It includes bit-level format descriptions, encoding and decoding,
 classification, rounding, saturation, projection, and core operations.
-The files under `Flops/P3109/Exec/Refinement` prove correspondence with
-the mathematical semantics. `Tests.lean` and `EvalTests.lean` contain
-regression and evaluation examples that are checked when the entry point
-is built.
+The files under `Flops/P3109/Exec/Refinement` prove that encoding,
+decoding, canonicalization, rounding, saturation, projection, arithmetic,
+comparisons, and extrema correspond to the mathematical semantics,
+including NaN propagation. `Tests.lean` checks these refinement results,
+the executable operations, and P3109's exceptional-value rules. It is
+elaborated when the entry point is built.
 
 ## Building
 
@@ -70,6 +73,13 @@ To check only the executable semantics and its refinement proofs:
 
 ```sh
 lake build +Flops.P3109.Exec
+```
+
+To compare the executable decoder and an independent C decoder with all
+224 entries in the standard's complete `K = 4` tables:
+
+```sh
+./tools/p3109-table-check/check.sh
 ```
 
 Both commands elaborate the regression examples imported by

@@ -7,26 +7,12 @@ import Flops.P3109.Exec.Decode
 namespace p3109_format
 namespace Exec
 
-/--
-Signed negate at the bit level. This keeps the fast-path behavior used by the
-existing executable codec layer.
--/
-def negate (x : Bits f) : Bits f :=
-  let d' : Decoded f :=
-    let d := decode x
-    match d with
-    | .nan => .nan
-    | .posInf =>
-      match f.s with
-      | .signed => .negInf
-      | .unsigned => .posInf
-    | .negInf => .posInf
-    | .finite fields =>
-      if _ : f.s = .signed then
-        .finite { fields with sign := fields.sign.not }
-      else
-        .finite fields
-  encode d'
+/-- Negate exactly, then project according to the result format's specification. -/
+def negate
+    (x : Bits f)
+    (rnd : RoundingMode)
+    (sat : SaturationMode) : Bits f :=
+  project (f := f) (neg (fromBits x)) rnd sat
 
 /-- Add with project pipeline. -/
 def add
@@ -58,15 +44,17 @@ def multiply
 /-- Divide with project pipeline. -/
 def divRoundedValue (x y : Value f) (rnd : RoundingMode) : Value f :=
   match x, y with
-  | .nan, _ => .finite 0 f.emin_lsb
-  | _, .nan => .finite 0 f.emin_lsb
-  | _, .posInf => .finite 0 f.emin_lsb
-  | _, .negInf => .finite 0 f.emin_lsb
-  | _, .finite 0 _ => .finite 0 f.emin_lsb
+  | .nan, _ => .nan
+  | _, .nan => .nan
+  | .posInf, .posInf | .posInf, .negInf
+  | .negInf, .posInf | .negInf, .negInf => .nan
+  | _, .finite 0 _ => .nan
   | .posInf, .finite m _ =>
     if m < 0 then .negInf else .posInf
   | .negInf, .finite m _ =>
     if m < 0 then .posInf else .negInf
+  | .finite _ _, .posInf => .finite 0 f.emin_lsb
+  | .finite _ _, .negInf => .finite 0 f.emin_lsb
   | .finite 0 _, _ => .finite 0 f.emin_lsb
   | .finite m₁ e₁, .finite m₂ e₂ =>
     let neg := decide ((m₁ < 0) ≠ (m₂ < 0))
@@ -115,19 +103,27 @@ def abs
 
 /-- Computable bit-level comparison via the executable value ordering. -/
 def isLess (x y : Bits f) : Bool :=
-  valueLT (f := f) (fromBits x) (fromBits y)
+  match fromBits x, fromBits y with
+  | .nan, _ | _, .nan => false
+  | a, b => valueLT (f := f) a b
 
 def isGreater (x y : Bits f) : Bool :=
-  valueLT (f := f) (fromBits y) (fromBits x)
+  isLess (f := f) y x
 
 def isEqual (x y : Bits f) : Bool :=
-  x == y
+  match fromBits x, fromBits y with
+  | .nan, _ | _, .nan => false
+  | _, _ => x == y
 
 def minimum (x y : Bits f) : Bits f :=
-  if isLess x y then x else y
+  match fromBits x, fromBits y with
+  | .nan, _ | _, .nan => encodeValue (f := f) .nan
+  | _, _ => if isLess x y then x else y
 
 def maximum (x y : Bits f) : Bits f :=
-  if isGreater x y then x else y
+  match fromBits x, fromBits y with
+  | .nan, _ | _, .nan => encodeValue (f := f) .nan
+  | _, _ => if isGreater x y then x else y
 
 def absoluteValue (x : Bits f) : Bits f :=
   let d := decode x
@@ -139,4 +135,3 @@ def absoluteValue (x : Bits f) : Bits f :=
 
 end Exec
 end p3109_format
-

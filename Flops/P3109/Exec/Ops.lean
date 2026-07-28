@@ -7,15 +7,11 @@ namespace p3109_format
 namespace Exec
 
 /-- Exact absolute-value path kept as a convenience helper for the executable API. -/
-noncomputable def absProject
+def absProject
     (x : Bits f)
     (rnd : RoundingMode)
     (sat : SaturationMode) : Bits f :=
-  let r := toEReal (fromBits x)
-  match r with
-  | ⊤ => projectEReal (⊤ : EReal) rnd sat
-  | ⊥ => projectEReal (⊥ : EReal) rnd sat
-  | (x : ℝ) => projectEReal ((|x| : ℝ) : EReal) rnd sat
+  abs (f := f) x rnd sat
 
 end Exec
 end p3109_format
